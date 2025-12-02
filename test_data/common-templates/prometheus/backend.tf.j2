@@ -1,0 +1,6 @@
+terraform {
+  backend "s3" {
+    bucket = "{% if cluster is defined and cluster.name is defined %}{{ cluster.name }}{% elif context is defined and context.name is defined %}{{ context.name }}{% endif %}-prometheus"
+    key    = "terraform.tfstate"
+    region = "{% if cluster is defined and cluster.region is defined %}{{ cluster.region }}{% elif context is defined and context.region is defined %}{{ context.region }}{% endif %}"
+  }

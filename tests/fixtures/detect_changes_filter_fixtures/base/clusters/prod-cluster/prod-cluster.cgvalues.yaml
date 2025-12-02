@@ -1,0 +1,17 @@
+# Base: AWS Prod Cluster configuration
+environment: prod
+region: us-west-2
+active: true
+
+components:
+  nginx:
+    config:
+      active: true
+      required: true
+      priority: 1
+
+  prometheus:
+    config:
+      active: true
+      required: true
+      priority: 0

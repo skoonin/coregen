@@ -1,0 +1,12 @@
+---
+# Test rules for detect-changes command
+component_files:
+  - "component/**/*.yaml"
+  - "component/**/*.tf"
+  - "component/**/*.j2"
+config_files:
+  - "component/config.yaml"
+  - "*.config.yaml"
+documentation:
+  - "component/README.md"
+  - "**/*.md"

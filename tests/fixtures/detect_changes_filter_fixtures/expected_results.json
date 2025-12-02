@@ -1,0 +1,208 @@
+{
+  "description": "Expected results for detect-changes filter tests",
+  "changes_summary": {
+    "total": 3,
+    "deleted": 1,
+    "changed": 1,
+    "new": 1
+  },
+  "all_changes": [
+    {
+      "component_name": "redis",
+      "context_name": "dev-cluster",
+      "workspace_name": "aws",
+      "status": "deleted",
+      "component_active": false,
+      "component_priority": 2,
+      "component_required": false,
+      "environment": "dev"
+    },
+    {
+      "component_name": "redis",
+      "context_name": "dev-env",
+      "workspace_name": "local",
+      "status": "changed",
+      "reason": "direct",
+      "component_active": true,
+      "component_priority": 3,
+      "component_required": false,
+      "environment": "dev"
+    },
+    {
+      "component_name": "nginx",
+      "context_name": "prod-env",
+      "workspace_name": "local",
+      "status": "changed",
+      "reason": "direct",
+      "component_active": false,
+      "component_priority": 1,
+      "component_required": false,
+      "environment": "prod"
+    }
+  ],
+  "filter_scenarios": [
+    {
+      "name": "No filter",
+      "filters": [],
+      "expected_count": 3,
+      "expected_components": ["redis", "redis", "nginx"],
+      "expected_contexts": 3,
+      "expected_workspaces": 2
+    },
+    {
+      "name": "Active components only",
+      "filters": ["component.config.active=true"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1,
+      "note": "Only the NEW redis in dev-env is active=true"
+    },
+    {
+      "name": "Inactive components only",
+      "filters": ["component.config.active=false"],
+      "expected_count": 2,
+      "expected_components": ["redis", "nginx"],
+      "expected_contexts": 2,
+      "expected_workspaces": 2,
+      "note": "Deleted redis (was inactive) and changed nginx (now inactive)"
+    },
+    {
+      "name": "Priority equals 1",
+      "filters": ["component.config.priority=1"],
+      "expected_count": 1,
+      "expected_components": ["nginx"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1
+    },
+    {
+      "name": "Priority equals 2",
+      "filters": ["component.config.priority=2"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1,
+      "note": "The deleted redis had priority=2"
+    },
+    {
+      "name": "Priority equals 3",
+      "filters": ["component.config.priority=3"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1,
+      "note": "The new redis has priority=3"
+    },
+    {
+      "name": "Environment equals dev",
+      "filters": ["context.environment=dev"],
+      "expected_count": 2,
+      "expected_components": ["redis", "redis"],
+      "expected_contexts": 2,
+      "expected_workspaces": 2,
+      "note": "Both dev-cluster and dev-env changes"
+    },
+    {
+      "name": "Environment equals prod",
+      "filters": ["context.environment=prod"],
+      "expected_count": 1,
+      "expected_components": ["nginx"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1
+    },
+    {
+      "name": "Workspace equals aws",
+      "filters": ["workspace.name=aws"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1
+    },
+    {
+      "name": "Workspace equals local",
+      "filters": ["workspace.name=local"],
+      "expected_count": 2,
+      "expected_components": ["redis", "nginx"],
+      "expected_contexts": 2,
+      "expected_workspaces": 1
+    },
+    {
+      "name": "Component name equals redis",
+      "filters": ["component.name=redis"],
+      "expected_count": 2,
+      "expected_components": ["redis", "redis"],
+      "expected_contexts": 2,
+      "expected_workspaces": 2,
+      "note": "Both deleted and new redis"
+    },
+    {
+      "name": "Component name equals nginx",
+      "filters": ["component.name=nginx"],
+      "expected_count": 1,
+      "expected_components": ["nginx"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1
+    },
+    {
+      "name": "Multiple filters - dev AND local",
+      "filters": ["context.environment=dev", "workspace.name=local"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1,
+      "note": "Only dev-env redis matches both"
+    },
+    {
+      "name": "Multiple filters - active AND priority>2",
+      "filters": ["component.config.active=true", "component.config.priority>2"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1,
+      "note": "Only new redis is active=true with priority=3"
+    },
+    {
+      "name": "Priority less than 3",
+      "filters": ["component.config.priority<3"],
+      "expected_count": 2,
+      "expected_components": ["redis", "nginx"],
+      "expected_contexts": 2,
+      "expected_workspaces": 2,
+      "note": "Deleted redis (2) and nginx (1)"
+    },
+    {
+      "name": "Required equals false",
+      "filters": ["component.config.required=false"],
+      "expected_count": 3,
+      "expected_components": ["redis", "redis", "nginx"],
+      "expected_contexts": 3,
+      "expected_workspaces": 2,
+      "note": "All changes have required=false"
+    },
+    {
+      "name": "Pattern matching - component name",
+      "filters": ["component.name~=red*"],
+      "expected_count": 2,
+      "expected_components": ["redis", "redis"],
+      "expected_contexts": 2,
+      "expected_workspaces": 2
+    },
+    {
+      "name": "Not equals - environment not prod",
+      "filters": ["context.environment!=prod"],
+      "expected_count": 2,
+      "expected_components": ["redis", "redis"],
+      "expected_contexts": 2,
+      "expected_workspaces": 2
+    },
+    {
+      "name": "Status equals deleted",
+      "filters": ["status=deleted"],
+      "expected_count": 1,
+      "expected_components": ["redis"],
+      "expected_contexts": 1,
+      "expected_workspaces": 1,
+      "note": "This would require status to be a filterable field"
+    }
+  ]
+}

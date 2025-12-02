@@ -1,0 +1,317 @@
+name: "CI: Code Quality & Tests"
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - "source/**"
+      - "pyproject.toml"
+      - "tox.ini"
+      - "tests/**"
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-ci
+  cancel-in-progress: true
+
+env:
+  _TYPER_FORCE_DISABLE_TERMINAL: "1" # ensures no-color
+
+jobs:
+  # Use tox for all quality checks
+  format-check:
+    name: Check Code Format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Check formatting with tox
+        run: |
+          tox -e format-check
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Lint with tox
+        run: |
+          tox -e lint
+
+  type-check:
+    name: Type Check (MyPy)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install mypy and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy types-PyYAML types-setuptools
+      - name: Run mypy type checking on changed files
+        run: |
+          # Get changed Python files in source directory
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.sha }} | grep '^source/coregen/.*\.py$' || true)
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "Running mypy on changed files: $CHANGED_FILES"
+            mypy "$CHANGED_FILES" --config-file=mypy.ini
+          else
+            echo "No Python source files changed, skipping mypy"
+          fi
+
+  # Component tests using tox
+  common-tests:
+    name: Common Module Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Run common module tests
+        run: |
+          tox -e test-ci-unit
+
+  config-tests:
+    name: Config Model Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Run config model tests
+        run: |
+          tox -e test-ci-config
+
+  cli-tests:
+    name: CLI Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Run CLI tests
+        run: |
+          tox -e test-ci-cli
+
+  service-tests:
+    name: Service Layer Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Run service tests
+        run: |
+          tox -e test-ci-services
+
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+            .tox
+          key: ${{ runner.os }}-py311-deps-${{ hashFiles('**/tox.ini', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-py311-deps-
+            ${{ runner.os }}-deps-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tox
+        run: |
+          python -m pip install --upgrade pip
+          pip install tox
+      - name: Run E2E tests
+        run: |
+          tox -e test-ci-e2e
+
+  # Final status check job
+  status-check:
+    name: Final Status Check
+    runs-on: ubuntu-24.04
+    needs:
+      [
+        format-check,
+        lint,
+        type-check,
+        common-tests,
+        config-tests,
+        cli-tests,
+        service-tests,
+        e2e-tests,
+      ]
+    if: always()
+    steps:
+      - name: Check if all jobs succeeded
+        run: |
+          echo "This job ensures that all previous jobs have completed successfully"
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more jobs were cancelled"
+            exit 1
+          fi
+          echo "All jobs succeeded!"

@@ -1,0 +1,364 @@
+workspaces:
+- name: aws
+  context_type: cluster
+  context_config_files:
+  - '**/*aws*values.yaml'
+  archive_dir: archive
+  output_dir: output
+  workspace_dir: clusters
+  cluster:
+  - name: aws-cluster-prod
+    env: prod
+    active: true
+    component_type: app
+    account_id: 03999999
+    root_dir: clusters
+    region_short: usw2
+    region: us-west-2
+    app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: '0'
+        required: true
+        dependencies: []
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        path: common-templates/metrics-server
+        required: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+        generated_path: clusters/aws/us-west-2/prod/aws-cluster-prod/generated/metrics-server
+    - name: nginx
+      config:
+        active: true
+        path: service/nginx
+        required: false
+        for_commit: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/service/nginx
+    workspaces: []
+    _config_file_path: clusters/aws/us-west-2/prod/aws-cluster-prod/aws-cluster-prod-values.yaml
+    environment: prod
+    resolved_paths:
+      context_path: clusters/aws/us-west-2/prod/aws-cluster-prod
+      commit_dir: clusters/aws/us-west-2/prod/aws-cluster-prod/generated
+    path: clusters/aws/us-west-2/prod/aws-cluster-prod
+    workspace: aws
+    archive_dir: archive
+    output_dir: output
+    commit_dir: generated
+  - name: aws-cluster-01
+    commit_dir: aws-generated
+    environment: dev
+    archive_dir: aws-archive
+    active: true
+    component_type: app
+    account_id: 03999999
+    cloud: aws
+    region_short: use2
+    region: us-east-2
+    app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: '0'
+        required: false
+        dependencies:
+        - name: nginx
+        - name: metrics-server
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        required: false
+        path: common-templates/metrics-server
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+        generated_path: clusters/aws/aws-cluster-01/generated/metrics-server
+    workspaces: []
+    _config_file_path: clusters/aws/aws-cluster-01/aws-cluster-01-values.yaml
+    resolved_paths:
+      context_path: clusters/aws/aws-cluster-01
+      commit_dir: clusters/aws/aws-cluster-01/aws-generated
+    path: clusters/aws/aws-cluster-01
+    workspace: aws
+    output_dir: output
+  - name: aws-cluster-dev
+    environment: dev
+    active: true
+    account_id: 1048576
+    component_type: app
+    root_dir: clusters
+    region_short: use2
+    region: us-east-2
+    app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: '0'
+        required: false
+        dependencies: []
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        path: common-templates/metrics-server
+        required: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+        generated_path: clusters/aws/us-east-2/dev/aws-cluster-dev/generated/metrics-server
+    - name: nginx
+      config:
+        active: true
+        path: clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx
+        required: false
+        for_commit: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx
+    workspaces: []
+    _config_file_path: clusters/aws/us-east-2/dev/aws-cluster-dev/aws-cluster-dev-values.yaml
+    resolved_paths:
+      context_path: clusters/aws/us-east-2/dev/aws-cluster-dev
+      commit_dir: clusters/aws/us-east-2/dev/aws-cluster-dev/generated
+    path: clusters/aws/us-east-2/dev/aws-cluster-dev
+    workspace: aws
+    archive_dir: archive
+    output_dir: output
+    commit_dir: generated
+  - name: aws-cluster-01-test
+    commit_dir: aws-generated
+    environment: dev
+    archive_dir: aws-archive
+    active: true
+    component_type: app
+    account_id: 03999999
+    cloud: aws
+    region_short: use2
+    region: us-east-2
+    app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: '0'
+        required: false
+        dependencies: []
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        required: false
+        path: common-templates/metrics-server
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+        generated_path: clusters/aws/us-east-2/dev/aws-cluster-01-test/generated/metrics-server
+    workspaces: []
+    _config_file_path: clusters/aws/us-east-2/dev/aws-cluster-01-test/aws-cluster-01-test-values.yaml
+    resolved_paths:
+      context_path: clusters/aws/us-east-2/dev/aws-cluster-01-test
+      commit_dir: clusters/aws/us-east-2/dev/aws-cluster-01-test/aws-generated
+    path: clusters/aws/us-east-2/dev/aws-cluster-01-test
+    workspace: aws
+    output_dir: output
+  resolved_paths:
+    workspace_path: /Users/shawnk/git/coregen/test_data/clusters
+    archive_path: /Users/shawnk/git/coregen/test_data/archive
+    output_path: /Users/shawnk/git/coregen/test_data/output
+- name: local
+  context_type: context
+  context_config_files:
+  - '**/*cgvalues*.yaml'
+  archive_dir: archive
+  output_dir: output
+  workspace_dir: contexts
+  context:
+  - name: context-prod
+    env: prod
+    component_type: app
+    active: true
+    account_id: 03999999
+    commit_dir: gen-prod
+    region_short: usw2
+    region: us-west-2
+    app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: '0'
+        required: false
+        dependencies: []
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        path: common-templates/metrics-server
+        required: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+        generated_path: contexts/prod/context-prod/generated/metrics-server
+    - name: nginx
+      config:
+        active: true
+        path: clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx
+        required: false
+        for_commit: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx
+    _config_file_path: contexts/prod/context-prod/context-prod-cgvalues.yaml
+    environment: prod
+    resolved_paths:
+      context_path: contexts/prod/context-prod
+      commit_dir: contexts/prod/context-prod/gen-prod
+    path: contexts/prod/context-prod
+    workspace: local
+    archive_dir: archive
+    output_dir: output
+  - name: context-dev-test
+    active: true
+    type: development
+    component:
+    - name: test-service
+      type: ClusterIP
+      port: 80
+      config:
+        priority: 20
+        active: true
+        required: false
+        for_commit: false
+        path: null
+        dependencies: []
+      resolved_paths:
+        component_path: contexts/context-dev/test-service
+    _config_file_path: contexts/context-dev/test-cgvalues.yaml
+    resolved_paths:
+      context_path: contexts/context-dev
+      commit_dir: contexts/context-dev/generated
+    path: contexts/context-dev
+    environment: null
+    workspace: local
+    archive_dir: archive
+    output_dir: output
+    commit_dir: generated
+    component_type: component
+  - name: context-dev
+    environment: dev
+    component_type: app
+    active: true
+    account_id: 03999999
+    region_short: use2
+    region: us-east-2
+    app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: '0'
+        required: false
+        dependencies: []
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        path: common-templates/metrics-server
+        required: false
+        priority: null
+        dependencies: []
+      resolved_paths:
+        component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+        generated_path: contexts/context-dev/generated/metrics-server
+    - name: nginx
+      config:
+        active: false
+        required: false
+        for_commit: false
+        priority: null
+        path: null
+        dependencies: []
+      resolved_paths:
+        component_path: contexts/context-dev/nginx
+    - name: test-service
+      type: ClusterIP
+      port: 80
+      config:
+        priority: 20
+        active: true
+        required: false
+        for_commit: false
+        path: null
+        dependencies: []
+      resolved_paths:
+        component_path: contexts/context-dev/test-service
+    _config_file_path: contexts/context-dev/context-dev-cgvalues.yaml
+    resolved_paths:
+      context_path: contexts/context-dev
+      commit_dir: contexts/context-dev/generated
+    path: contexts/context-dev
+    workspace: local
+    archive_dir: archive
+    output_dir: output
+    commit_dir: generated
+  resolved_paths:
+    workspace_path: /Users/shawnk/git/coregen/test_data/contexts
+    archive_path: /Users/shawnk/git/coregen/test_data/archive
+    output_path: /Users/shawnk/git/coregen/test_data/output
+contexts: {}
+components: {}

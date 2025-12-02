@@ -1,0 +1,67 @@
+name: "CD: Coregen Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force release (delete existing if present)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: coregen-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  _TYPER_FORCE_DISABLE_TERMINAL: "1"
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Project and Run Tests
+        run: |
+          make setup
+          make test
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Get Version from __init__.py
+        id: get_version
+        run: |
+          VERSION=$(grep "__version__ =" source/coregen/__init__.py | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Found version: $VERSION"
+
+      - name: Create Git Tag
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          git tag v$VERSION
+          git push origin v$VERSION
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if [ "${{ github.event.inputs.force_release }}" = "true" ] && gh release view v$VERSION &>/dev/null; then
+            echo "Deleting existing release v$VERSION..."
+            gh release delete v$VERSION --yes
+          fi
+          gh release create v$VERSION --generate-notes --latest
+          echo "Release v$VERSION created"

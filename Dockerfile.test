@@ -1,0 +1,28 @@
+# Lightweight test container for coregen
+# Optimized for fast test execution with minimal layers
+
+FROM python:3.11-slim-bullseye
+
+# Install only essential build tools and make
+RUN apt-get update && apt-get install -y \
+    make \
+    git \
+    gcc \
+    python3-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Nuitka build dependencies
+RUN pip install --no-cache-dir nuitka patchelf ordered-set zstandard
+
+# Set working directory
+WORKDIR /workspace
+
+# Pre-install test dependencies for better caching
+RUN pip install --no-cache-dir \
+    tox>=4.0.0 \
+    pytest>=8.0.0 \
+    pytest-timeout>=2.0.0
+
+# Default command runs tests
+CMD ["make", "test"]

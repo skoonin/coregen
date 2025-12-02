@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ app.name }}-config
+  namespace: default
+data:
+  app.name: "{{ component.name }}"
+  environment: "dev"
+  region: "us-east-2"
+  # these should be the same
+  cluster: "{{ cluster.name }}"
+  context: "{{ context.name }}"
+  # nested custom fields from cluster (context-specific)
+  cluster.argocd.version: "{{ cluster.versions.argocd }}"
+  cluster.kustomize.version: "{{ cluster.versions.kustomize }}"
+  # nested custom fields from workspace (inherited by all aws contexts)
+  workspace.helmfile.version: "{{ workspace.workspace_tools.helmfile }}"
+  workspace.argocd.version: "{{ workspace.workspace_tools.argocd }}"

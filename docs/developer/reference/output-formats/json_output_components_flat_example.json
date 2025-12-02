@@ -1,0 +1,49 @@
+// # for components, nested and flat are the same!
+{
+  "components": [
+    {
+      "name": "prometheus",
+      "context": "aws-cluster-prod",
+      "workspace": "aws",
+      "environment": "prod",
+      "config": {
+        "active": true,
+        "required": true,
+        "for_commit": false,
+        "priority": 0,
+        "path": "common-templates/prometheus",
+        "dependencies": []
+      },
+      "resolved_paths": {
+        "component_path": "/Users/shawnk/git/coregen/test_data/common-templates/prometheus",
+        "generated_path": "/Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/generated/prometheus"
+      },
+      "custom_field": "custom value",
+      "custom_field_01": {
+        "custom_list_field": "custom_value"
+      }
+    },
+    {
+      "name": "metrics-server",
+      "context": "aws-cluster-dev",
+      "workspace": "aws",
+      "environment": "dev",
+      "config": {
+        "active": true,
+        "required": false,
+        "for_commit": true,
+        "priority": null,
+        "path": "common-templates/metrics-server",
+        "dependencies": []
+      },
+      "resolved_paths": {
+        "component_path": "/Users/shawnk/git/coregen/test_data/common-templates/metrics-server",
+        "generated_path": "/Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/dev/aws-cluster-dev/generated/metrics-server"
+      },
+      "custom_field": "custom value",
+      "custom_field_01": {
+        "custom_list_field": "custom_value"
+      }
+    }
+  ]
+}

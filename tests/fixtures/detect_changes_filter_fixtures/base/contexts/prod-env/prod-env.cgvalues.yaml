@@ -1,0 +1,17 @@
+# Base: Local Prod Environment configuration
+environment: prod
+region: local
+active: true
+
+components:
+  postgres:
+    config:
+      active: true
+      required: true
+      priority: 2
+
+  nginx:
+    config:
+      active: true  # Will change to false in current
+      required: false
+      priority: 1

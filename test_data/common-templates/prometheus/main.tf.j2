@@ -1,0 +1,85 @@
+{% if cluster is defined %}
+  {% set ctx_name = cluster.name %}
+{% elif context is defined %}
+  {% set ctx_name = context.name %}
+{% endif %}
+
+# AWS provider
+provider "aws" {
+  profile = module.shared_vars.account
+  region  = module.shared_vars.region
+}
+
+# Helm provider
+provider "helm" {
+  kubernetes {
+    config_path    = "~/.kube/config"
+    config_context = module.shared_vars.cluster
+  }
+  helm_driver = "configmap"
+  "noop" = true
+}
+
+# Kubernetes provider
+provider "kubernetes" {
+  config_path    = "~/.kube/config"
+  config_context = module.shared_vars.cluster
+}
+
+module "shared_vars" {
+  source = "../shared_vars"
+}
+
+locals {
+  svc = "prometheus"
+  namespace = "prometheus"
+}
+
+resource "kubernetes_namespace" "prometheus" {
+  metadata {
+    name = "${local.namespace}"
+  }
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations,
+      metadata[0].labels
+    ]
+  }
+}
+
+data "aws_eks_cluster" "cluster" {
+  # should match {{ context.name }}
+  name = "{{ ctx_name }}"
+}
+
+data "aws_security_group" "node_group_sg" {
+  tags = {
+    "k8s_cluster"                                   = "${module.shared_vars.cluster}"
+    "kubernetes.io/cluster/${module.shared_vars.cluster}" = "owned"
+  }
+}
+
+# This installs CRDs, but also it will destroy them if the chart is uninstalled!
+resource "helm_release" "prometheus-operator-crds" {
+  depends_on = [kubernetes_namespace.prometheus]
+  name       = "prometheus-operator-crds"
+  namespace  = "${local.namespace}"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "prometheus-operator-crds"
+  version    = "{{ app.vars.crd_chart_version }}"
+  lint       = true
+}
+
+##Install Kube-Prometheus-Stack Chart
+resource "helm_release" "kube-prometheus-stack" {
+  depends_on = [helm_release.prometheus-operator-crds, kubernetes_namespace.prometheus]
+  name       = "kube-prometheus-stack"
+  namespace  = "${local.namespace}"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-prometheus-stack"
+  version    = "{{ app.vars.helm_chart_version }}"
+  lint       = true
+  values = [
+    "${file("kube-prometheus-stack-values.yaml")}"
+  ]
+}

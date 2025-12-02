@@ -1,0 +1,20 @@
+workspaces:
+  - name: aws
+    context_type: cluster
+    context_config_files:
+      - "**/*aws*values.yaml"
+    archive_dir: archive
+    output_dir: output
+    workspace_dir: clusters
+    custom_aws_workspace_field: custom_workspace_value
+    workspace_tools:
+      helmfile: v0.144.0
+      argocd: v2.8.0
+  - name: local
+    context_type: context
+    context_config_files:
+      - "**/*cgvalues*.yaml"
+    archive_dir: archive
+    output_dir: output
+    workspace_dir: contexts
+    custom_local_workspace_field: custom_workspace_value

@@ -1,0 +1,129 @@
+// we always want to display absolute paths in matrix outputs
+
+{
+  "include": [
+    {
+      "component": "nginx",
+      "command": "get cm/nginx -f context.name=aws-cluster-prod",
+      "component_active": true,
+      "component_custom_field": "nginx-specific-value",
+      "component_dependencies": [
+        {
+          "name": "prometheus",
+          "path": "common-templates/prometheus"
+        },
+        {
+          "name": "metrics-server",
+          "path": "common-templates/metrics-server"
+        }
+      ],
+      "component_dependency_01_name": "prometheus",
+      // absolute resolved path of component
+      "component_dependency_01_path": "/Users/user/repo/common-templates/prometheus",
+      "component_dependency_02_name": "metrics-server",
+      "component_dependency_02_path": "/Users/user/repo/common-templates/metrics-server",
+      "component_for_commit": false,
+      "component_name": "nginx",
+      // absolute path of component (resolved)
+      "component_path": "/Users/user/repo/workspace/contexts/aws-cluster-prod/nginx",
+      "component_priority": 1,
+      "component_required": false,
+      "context": "aws-cluster-prod",
+      "context_active": true,
+      "context_component_type": "app",
+      "context_environment": "prod",
+      "context_commit_dir": "generated",
+      "context_name": "aws-cluster-prod",
+      "context_output_dir": "custom-output",
+      "context_region": "us-west-2",
+      "context_region_short": "usw2",
+      "environment": "prod",
+      "workspace": "aws",
+      "workspace_archive_dir": "archive",
+      "workspace_context_type": "cluster",
+      "workspace_name": "aws",
+      "workspace_output_dir": "output"
+    },
+    {
+      "component": "prometheus",
+      "command": "get cm/prometheus -f context.name=aws-cluster-prod",
+      "component_active": true,
+      "component_dependencies": [],
+      "component_for_commit": false,
+      "component_name": "prometheus",
+      "component_path": "common-templates/prometheus",
+      "component_priority": null,
+      "component_required": true,
+      "context": "aws-cluster-prod",
+      "context_active": true,
+      "context_component_type": "app",
+      "context_environment": "prod",
+      "context_commit_dir": "generated",
+      "context_name": "aws-cluster-prod",
+      "context_output_dir": "custom-output",
+      "context_region": "us-west-2",
+      "context_region_short": "usw2",
+      "environment": "prod",
+      "workspace": "aws",
+      "workspace_archive_dir": "archive",
+      "workspace_context_type": "cluster",
+      "workspace_name": "aws",
+      "workspace_output_dir": "output"
+    },
+    {
+      "component": "grafana",
+      "command": "get cm/grafana -f context.name=aws-cluster-dev",
+      "component_active": false,
+      "component_dependencies": [
+        {
+          "name": "prometheus",
+          "path": "common-templates/prometheus"
+        }
+      ],
+      "component_dependency_01_name": "prometheus",
+      "component_dependency_01_path": "common-templates/prometheus",
+      "component_for_commit": true,
+      "component_name": "grafana",
+      "component_path": "custom/grafana",
+      "component_priority": 200,
+      "component_required": false,
+      "context": "aws-cluster-dev",
+      "context_active": true,
+      "context_component_type": "app",
+      "context_environment": "dev",
+      "context_commit_dir": "generated",
+      "context_name": "aws-cluster-dev",
+      "context_region": "us-east-1",
+      "context_region_short": "use1",
+      "environment": "dev",
+      "workspace": "aws",
+      "workspace_archive_dir": "archive",
+      "workspace_context_type": "cluster",
+      "workspace_name": "aws",
+      "workspace_output_dir": "output"
+    },
+    {
+      "component": "metrics-server",
+      "command": "get cm/metrics-server -f context.name=cluster-dev",
+      "component_active": true,
+      "component_dependencies": [],
+      "component_for_commit": false,
+      "component_name": "metrics-server",
+      "component_path": "common-templates/metrics-server",
+      "component_priority": 50,
+      "component_required": false,
+      "context": "cluster-dev",
+      "context_active": false,
+      "context_component_type": "app",
+      "context_environment": "dev",
+      "context_commit_dir": "generated",
+      "context_name": "cluster-dev",
+      "environment": "dev",
+      "workspace": "local",
+      "workspace_archive_dir": "archive",
+      "workspace_context_type": "cluster",
+      "workspace_name": "local",
+      "workspace_output_dir": "output"
+    }
+  ]
+}

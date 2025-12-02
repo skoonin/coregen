@@ -1,0 +1,58 @@
+# We use this to check component dependency resolution and ordering
+
+cluster:
+  name: aws-cluster-01
+  commit_dir: aws-for-commit
+  environment: dev
+  archive_dir: aws-archive
+  active: true
+  component_type: app
+  account_id: 039999992
+  cloud: aws
+  region_short: use2
+  region: us-east-2
+  app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: 0
+        required: false
+      vars:
+        helm_chart_version: 0.9.2
+        crd_chart_version: 0.1.0
+    - name: prometheus-dep
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: 2
+        required: false
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+    - name: metrics-server-3-deps
+      config:
+        for_commit: true
+        active: true
+        required: false
+        priority: 5
+        dependencies:
+          - name: prometheus-dep
+          - name: nginx
+          - name: metrics-server-dep
+        path: common-templates/metrics-server
+    - name: metrics-server-dep
+      config:
+        for_commit: true
+        active: true
+        path: common-templates/metrics-server
+        required: false
+        priority: 3
+    - name: nginx
+      config:
+        for_commit: false
+        active: true
+        required: false
+        priority: 4

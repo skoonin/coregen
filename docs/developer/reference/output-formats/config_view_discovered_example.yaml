@@ -1,0 +1,214 @@
+# this is our model via discovered configuration files
+workspaces:
+  - name: aws
+    context_type: cluster
+    context_config_files:
+      - "**/*aws*values.yaml"
+    archive_dir: archive
+    output_dir: output
+    workspace_dir: clusters
+    cluster:
+      - name: aws-cluster-prod
+        env: prod
+        active: true
+        component_type: app
+        account_id: 03999999
+        root_dir: clusters
+        region_short: usw2
+        region: us-west-2
+        app:
+          - name: prometheus
+            config:
+              active: true
+              for_commit: false
+              path: common-templates/prometheus
+              priority: "0"
+              required: true
+            vars:
+              helm_chart_version: 0.9.1
+              crd_chart_version: 0.1.0
+          - name: metrics-server
+            config:
+              for_commit: true
+              active: true
+              path: common-templates/metrics-server
+          - name: nginx
+            config:
+              active: true
+              path: service/nginx
+        workspaces: []
+        _config_file_path: clusters/aws/us-west-2/prod/aws-cluster-prod/aws-cluster-prod-values.yaml
+        environment: prod
+      - name: aws-cluster-01
+        commit_dir: aws-generated
+        environment: dev
+        archive_dir: aws-archive
+        active: true
+        component_type: app
+        account_id: 03999999
+        cloud: aws
+        region_short: use2
+        region: us-east-2
+        app:
+          - name: prometheus
+            config:
+              active: true
+              for_commit: false
+              path: common-templates/prometheus
+              priority: "0"
+              required: false
+              dependencies:
+                - name: nginx
+                - name: metrics-server
+            vars:
+              helm_chart_version: 0.9.1
+              crd_chart_version: 0.1.0
+          - name: metrics-server
+            config:
+              for_commit: true
+              active: true
+              required: false
+              path: common-templates/metrics-server
+        workspaces: []
+        _config_file_path: clusters/aws/aws-cluster-01/aws-cluster-01-values.yaml
+      - name: aws-cluster-dev
+        environment: dev
+        active: true
+        account_id: 1048576
+        component_type: app
+        root_dir: clusters
+        region_short: use2
+        region: us-east-2
+        app:
+          - name: prometheus
+            config:
+              active: true
+              for_commit: false
+              path: common-templates/prometheus
+              priority: "0"
+              required: false
+            vars:
+              helm_chart_version: 0.9.1
+              crd_chart_version: 0.1.0
+          - name: metrics-server
+            config:
+              for_commit: true
+              active: true
+              path: common-templates/metrics-server
+          - name: nginx
+            config:
+              active: true
+              path: clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx
+        workspaces: []
+        _config_file_path: clusters/aws/us-east-2/dev/aws-cluster-dev/aws-cluster-dev-values.yaml
+      - name: aws-cluster-01-test
+        commit_dir: aws-generated
+        environment: dev
+        archive_dir: aws-archive
+        active: true
+        component_type: app
+        account_id: 03999999
+        cloud: aws
+        region_short: use2
+        region: us-east-2
+        app:
+          - name: prometheus
+            config:
+              active: true
+              for_commit: false
+              path: common-templates/prometheus
+              priority: "0"
+              required: false
+            vars:
+              helm_chart_version: 0.9.1
+              crd_chart_version: 0.1.0
+          - name: metrics-server
+            config:
+              for_commit: true
+              active: true
+              required: false
+              path: common-templates/metrics-server
+        workspaces: []
+        _config_file_path: clusters/aws/us-east-2/dev/aws-cluster-01-test/aws-cluster-01-test-values.yaml
+  - name: local
+    context_type: context
+    context_config_files:
+      - "**/*cgvalues*.yaml"
+    archive_dir: archive
+    output_dir: output
+    workspace_dir: contexts
+    context:
+      - name: context-prod
+        env: prod
+        component_type: app
+        active: true
+        account_id: 03999999
+        commit_dir: gen-prod
+        region_short: usw2
+        region: us-west-2
+        app:
+          - name: prometheus
+            config:
+              active: true
+              for_commit: false
+              path: common-templates/prometheus
+              priority: "0"
+              required: false
+            vars:
+              helm_chart_version: 0.9.1
+              crd_chart_version: 0.1.0
+          - name: metrics-server
+            config:
+              for_commit: true
+              active: true
+              path: common-templates/metrics-server
+          - name: nginx
+            config:
+              active: true
+              path: clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx
+        _config_file_path: contexts/prod/context-prod/context-prod-cgvalues.yaml
+        environment: prod
+      - name: context-dev-test
+        active: true
+        type: development
+        component:
+          - name: test-service
+            type: ClusterIP
+            port: 80
+            config:
+              priority: 20
+              active: true
+        _config_file_path: contexts/context-dev/test-cgvalues.yaml
+      - name: context-dev
+        environment: dev
+        component_type: app
+        active: true
+        account_id: 03999999
+        region_short: use2
+        region: us-east-2
+        app:
+          - name: prometheus
+            config:
+              active: true
+              for_commit: false
+              path: common-templates/prometheus
+              priority: "0"
+              required: false
+            vars:
+              helm_chart_version: 0.9.1
+              crd_chart_version: 0.1.0
+          - name: metrics-server
+            config:
+              for_commit: true
+              active: true
+              path: common-templates/metrics-server
+          - name: nginx
+            config:
+              active: false
+          - name: test-service
+            type: ClusterIP
+            port: 80
+            config:
+              priority: 20
+              active: true
+        _config_file_path: contexts/context-dev/context-dev-cgvalues.yaml

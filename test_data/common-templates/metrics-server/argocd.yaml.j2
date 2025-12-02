@@ -1,0 +1,93 @@
+{% if cluster is defined %}
+  {% set name = cluster.name %}
+{% elif context is defined %}
+  {% set name = context.name %}
+{% endif %}
+
+{% if cluster is defined %}
+  {% if cluster.env is defined %}
+    {% set environment = cluster.env %}
+  {% elif cluster.environment is defined %}
+    {% set environment = cluster.environment %}
+  {% endif %}
+{% elif context is defined %}
+    {% if context.env is defined %}
+    {% set environment = context.env %}
+  {% elif context.environment is defined %}
+    {% set environment = context.environment %}
+  {% endif %}
+{% endif %}
+
+{% if cluster is defined %}
+  {% set region = cluster.region %}
+{% elif context is defined %}
+  {% set region = context.region %}
+{% endif %}
+
+{% if cluster is defined %}
+  {% set account_id = cluster.account_id %}
+{% elif context is defined %}
+  {% set account_id = context.account_id %}
+{% endif %}
+
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: metrics-server
+  namespace: argocd
+spec:
+  destinations:
+    - namespace: kube-system
+      server: https://kubernetes.default.svc
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+  sourceRepos:
+    - "https://github.com/your/repo"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: "apiregistration.k8s.io"
+      kind: APIService
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ServiceAccount
+    - group: "rbac.authorization.k8s.io"
+      kind: RoleBinding
+    - group: ""
+      kind: Service
+    - group: "apps"
+      kind: Deployment
+    - group: "policy"
+      kind: PodDisruptionBudget
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  annotations:
+    # the below annotation is used to subscribe to the visibility trigger for datadog
+    # the below three lines are required for all argocd applications
+    notifications.argoproj.io/subscribe.cd-visibility-trigger.cd-visibility-webhook: ""
+    dd_env: {{ environment }}
+    dd_service: metrics-server
+    dd_customtags: "cluster_name:{{ name }}, cluster_region:{{ region }}, cluster_account: {{ account_id }}, cluster_env:{{ environment }}"
+spec:
+  project: metrics-server
+  source:
+    repoURL: "https://github.com/your/repo"
+    path: k8s-infra-hpc/clusters/aws/{{ name }}/{{ environment }}/{{ name }}
+    {%- if "dev" in name %}
+    testconditional: dev-is-found
+    {% endif %}
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true

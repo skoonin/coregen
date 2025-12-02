@@ -1,0 +1,123 @@
+{
+  // Example for `coregen get w/* --output json --format flat`
+  // If user adds `--type <entity>`, only that entity will be included in the output. (eg. type workspaces means they would include no children)
+  "workspaces": [
+    {
+      "name": "aws", // Name is always first field
+      "archive_dir": "archive",
+      "context_config_files": ["**/*aws*values.yaml"],
+      "context_type": "cluster",
+      "output_dir": "output",
+      "workspace_dir": "clusters",
+      // All custom fields are included and sorted with other fields alphabetically
+      "custom_field": "custom value"
+      "contexts": [
+        {
+          "name": "aws-cluster-01",
+          "_config_file_path": "/workspace/test_data/contexts/aws/us-east-2/dev/aws-cluster-01/aws-cluster-01-values.yaml",
+          "account_id": "03999999",
+          "active": true,
+          "archive_dir": "aws-archive",
+          "cloud": "aws",
+          "component_type": "app",
+          "components": {
+            // "we strip out extra <component_type> key for simplicity (eg. app)"
+            // "we also strip out the duplicate `contexts.context.app` block that is returned"
+            // "so, we replace `contexts.context.components.app.metrics-server` with `components.metrics-server`"
+            "metrics-server": {
+              // rest of component fields
+            }
+          // rest of context fields
+          }
+        }
+      ]
+    }
+  ],
+  "contexts": [
+    {
+      "name": "aws-cluster-prod",
+      "active": true,
+      "archive_dir": "archive",
+      "component_type": "app",
+      "environment": "prod",
+      "commit_dir": "generated",
+      "output_dir": "output",
+      "workspace": "aws",
+      "_config_file_path": "/Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/aws-cluster-prod-values.yaml",
+      // All custom fields are included and sorted with other fields alphabetically
+      "custom_field": "custom value"
+    },
+    {
+      "name": "aws-cluster-dev",
+      "active": true,
+      "archive_dir": "archive",
+      "component_type": "app",
+      "environment": "dev",
+      "commit_dir": "generated",
+      "output_dir": "output",
+      "workspace": "aws",
+      "_config_file_path": "/Users/shawnk/git/coregen/test_data/clusters/aws/us-east-2/dev/aws-cluster-dev/aws-cluster-dev-values.yaml",
+      // All custom fields are included and sorted with other fields alphabetically
+      "custom_field": "custom value",
+      "custom_field_01": {
+        "custom_list_field": "custom_value"
+      },
+      "components": [
+        {
+          "name": "prometheus",
+          "context": "aws-cluster-prod",
+          "workspace": "aws",
+          "environment": "prod"
+          // rest of component fields
+        }
+      ]
+  },
+  "components": [
+    {
+      "name": "prometheus",
+      "context": "aws-cluster-prod",
+      "workspace": "aws",
+      "environment": "prod",
+      "config": {
+        "active": true,
+        "required": true,
+        "for_commit": false,
+        "priority": 0,
+        "path": "common-templates/prometheus",
+        "dependencies": []
+      },
+      "resolved_paths": {
+        "component_path": "/Users/shawnk/git/coregen/test_data/common-templates/prometheus",
+        "generated_path": "/Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/generated/prometheus"
+      },
+      // All custom fields are included and sorted with other fields alphabetically
+      "custom_field": "custom value",
+      "custom_field_01": {
+        "custom_list_field": "custom_value"
+      }
+    },
+    {
+      "name": "metrics-server",
+      "context": "aws-cluster-dev",
+      "workspace": "aws",
+      "environment": "dev",
+      "config": {
+        "active": true,
+        "required": false,
+        "for_commit": true,
+        "priority": null,
+        "path": "common-templates/metrics-server",
+        "dependencies": []
+      },
+      "resolved_paths": {
+        "component_path": "/Users/shawnk/git/coregen/test_data/common-templates/metrics-server",
+        "generated_path": "/Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/dev/aws-cluster-dev/generated/metrics-server"
+      },
+      // All custom fields are included and sorted with other fields alphabetically
+      "custom_field": "custom value",
+      "custom_field_01": {
+        "custom_list_field": "custom_value"
+      }
+    }
+  ]
+}

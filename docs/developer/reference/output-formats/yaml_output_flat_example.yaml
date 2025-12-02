@@ -1,0 +1,91 @@
+# Example for `coregen get w/* --output yaml --format flat`
+# If user adds `--type <entity>`, only that entity will be included in the output.
+workspaces:
+  - name: aws # Name is always first field
+    archive_dir: archive
+    context_config_files:
+      - "**/*aws*values.yaml"
+    context_type: cluster
+    output_dir: output
+    workspace_dir: clusters
+    # All custom fields are included and sorted with other fields alphabetically
+    custom_field: custom value
+    contexts:
+      - name: aws-cluster-prod
+        active: true
+        archive_dir: archive
+        component_type: app
+        env: prod
+        environment: prod
+        commit_dir: generated
+        output_dir: output
+        workspace: aws
+        _config_file_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/aws-cluster-prod-values.yaml
+        # All custom fields are included and sorted with other fields alphabetically
+        custom_field: custom value
+
+contexts:
+  - name: aws-cluster-prod
+    active: true
+    archive_dir: archive
+    component_type: app
+    env: prod
+    environment: prod
+    commit_dir: generated
+    output_dir: output
+    workspace: aws
+    _config_file_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/aws-cluster-prod-values.yaml
+    # All custom fields are included and sorted with other fields alphabetically
+    custom_field: custom value
+  - name: aws-cluster-dev
+    active: true
+    archive_dir: archive
+    component_type: app
+    env: dev
+    environment: dev
+    commit_dir: generated
+    output_dir: output
+    workspace: aws
+    _config_file_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-east-2/dev/aws-cluster-dev/aws-cluster-dev-values.yaml
+    # All custom fields are included and sorted with other fields alphabetically
+    custom_field: custom value
+    custom_field_01:
+      custom_list_field: custom_value
+
+components:
+  - name: prometheus
+    context: aws-cluster-prod
+    workspace: aws
+    config:
+      active: true
+      required: true
+      for_commit: false
+      priority: 0
+      path: common-templates/prometheus
+      dependencies: []
+    environment: prod
+    resolved_paths:
+      component_path: /Users/shawnk/git/coregen/test_data/common-templates/prometheus
+      generated_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/prod/aws-cluster-prod/generated/prometheus
+    # All custom fields are included and sorted with other fields alphabetically
+    custom_field: custom value
+    custom_field_01:
+      custom_list_field: custom_value
+  - name: metrics-server
+    context: aws-cluster-dev
+    workspace: aws
+    config:
+      active: true
+      required: false
+      for_commit: true
+      priority: null
+      path: common-templates/metrics-server
+      dependencies: []
+    environment: dev
+    resolved_paths:
+      component_path: /Users/shawnk/git/coregen/test_data/common-templates/metrics-server
+      generated_path: /Users/shawnk/git/coregen/test_data/clusters/aws/us-west-2/dev/aws-cluster-dev/generated/metrics-server
+    # All custom fields are included and sorted with other fields alphabetically
+    custom_field: custom value
+    custom_field_01:
+      custom_list_field: custom_value

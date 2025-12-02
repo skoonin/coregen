@@ -1,0 +1,28 @@
+# Metrics Server Makefile
+
+{% if cluster is defined %}
+  {% set name = cluster.name %}
+{% elif context is defined %}
+  {% set name = context.name %}
+{% endif %}
+
+CLUSTER ?= "{{ name }}"
+
+
+apply:
+	kubectl apply -f argocd.yaml --context $(CLUSTER)
+
+auto-apply:
+	kubectl apply -f argocd.yaml --context $(CLUSTER) -auto-approve
+
+destroy:
+	kubectl -n argocd --context $(CLUSTER) patch application metrics-server -p '{"metadata": {"finalizers": ["resources-finalizer.argocd.argoproj.io"]}}' --type merge && \
+		kubectl -n argocd --context $(CLUSTER) delete application metrics-server
+
+dry-run: plan
+
+init:
+	@echo "ARGOCD Deployment, no init required."
+
+plan:
+	kubectl apply -f argocd.yaml --context $(CLUSTER) --dry-run=client

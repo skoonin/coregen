@@ -1,0 +1,19 @@
+# Current: AWS Dev Cluster configuration
+environment: dev
+region: us-east-1
+active: true
+
+components:
+  nginx:
+    config:
+      active: true
+      required: false
+      priority: 1
+
+  prometheus:
+    config:
+      active: true
+      required: true
+      priority: 0
+
+  # redis has been DELETED (was active: false, priority: 2)

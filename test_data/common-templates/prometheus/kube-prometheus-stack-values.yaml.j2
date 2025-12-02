@@ -1,0 +1,57 @@
+# This is a basic configuration for the kube-prometheus-stack Helm chart.
+# We only want metrics for visibility in Lens.
+
+alertmanager:
+  enabled: false
+coreDns:
+  enabled: false
+crds: # installed via prometheus-operator-crds helm chart
+  enabled: false
+defaultRules:
+  create: false
+grafana:
+  enabled: false
+kubeApiServer:
+  enabled: false
+kubeControllerManager:
+  enabled: true
+kubeDns:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeStateMetrics:
+  enabled: true
+kubelet:
+  enabled: true
+kubernetesServiceMonitors:
+  enabled: true
+nodeExporter:
+  enabled: true
+prometheus:
+  enabled: true
+  prometheusSpec:
+    hostNetwork: true
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 100Mi
+    retention: 2d
+prometheusOperator:
+  enabled: true
+  hostNetwork: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+thanosRuler:
+  enabled: false

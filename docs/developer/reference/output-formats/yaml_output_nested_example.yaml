@@ -1,0 +1,182 @@
+---
+# note name is the first key in each block
+workspaces:
+  - name: aws
+    archive_dir: archive
+    context_config_files:
+      - "**/*aws*values.yaml"
+    context_type: cluster
+    output_dir: output
+    workspace_dir: contexts
+    custom_key: custom_value00
+    contexts:
+      - name: aws-cluster-01
+        _config_file_path: "/workspace/test_data/contexts/aws/us-east-2/dev/aws-cluster-01/aws-cluster-01-values.yaml"
+        account_id: "03999999"
+        active: true
+        archive_dir: aws-archive
+        cloud: aws
+        component_type: app
+        components:
+          # we strip out extra <component_type> key for simplicity (eg. app)
+          # we also strip out the duplicate `contexts.context.app` block that is returned
+          # so, we replace `contexts.context.components.app.metrics-server` with `components.metrics-server`
+          metrics-server:
+            name: metrics-server
+            context: aws-cluster-01
+            workspace: aws
+            config:
+              active: true
+              dependencies: []
+              for_commit: true
+              path: common-templates/metrics-server
+              priority:
+              required: false
+            resolved_paths:
+              component_path: "/workspace/test_data/common-templates/metrics-server"
+              generated_path: "/workspace/test_data/contexts/aws/us-east-2/dev/aws-cluster-01/generated/metrics-server"
+          prometheus:
+            name: prometheus
+            context: aws-cluster-01
+            workspace: aws
+            config:
+              active: true
+              dependencies:
+                - environment: ""
+                  name: nginx
+                  path: ""
+                - environment: ""
+                  name: metrics-server
+                  path: ""
+              for_commit: false
+              path: common-templates/prometheus
+              priority: 0
+              required: false
+            resolved_paths:
+              component_path: "/workspace/test_data/common-templates/prometheus"
+            vars:
+              crd_chart_version: 0.1.0
+              helm_chart_version: 0.9.1
+        custom_key: custom_value03
+        environment: dev
+        commit_dir: aws-generated
+        output_dir: output
+        path: "/workspace/test_data/contexts/aws/us-east-2/dev/aws-cluster-01"
+        region: us-east-2
+        region_short: use2
+        resolved_paths:
+          context_path: "/workspace/test_data/contexts/aws/us-east-2/dev/aws-cluster-01"
+          commit_dir: "/workspace/test_data/contexts/aws/us-east-2/dev/aws-cluster-01/aws-generated"
+        workspace: aws
+      - name: local-cluster-prod
+        _config_file_path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod/local-cluster-prod-values.yaml"
+        account_id: "04000000"
+        active: true
+        archive_dir: local-archive
+        cloud: local
+        component_type: app
+        components:
+          metrics-server:
+            name: metrics-server
+            config:
+              active: true
+              dependencies: []
+              for_commit: true
+              path: common-templates/metrics-server
+              priority:
+              required: false
+            resolved_paths:
+              component_path: "/workspace/test_data/common-templates/metrics-server"
+              generated_path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod/generated/metrics-server"
+          nginx:
+            name: nginx
+            config:
+              active: true
+              dependencies: []
+              for_commit: false
+              path: common-templates/nginx
+              priority: 1
+              required: false
+            resolved_paths:
+              component_path: "/workspace/test_data/common-templates/nginx"
+        custom_key: custom_value04
+        environment: prod
+        commit_dir: local-generated
+        output_dir: output
+        path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod"
+        region: us-west-2
+        region_short: usw2
+        resolved_paths:
+          context_path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod"
+          commit_dir: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod/local-generated"
+        workspace: local
+        workspaces:
+          - name: local
+            archive_dir: archive
+            context_config_files:
+              - "**/*local*values.yaml"
+            context_type: cluster
+            output_dir: output
+            workspace_dir: local
+            custom_key: custom_value00
+  - name: local
+    archive_dir: archive
+    context_config_files:
+      - "**/*azure*values.yaml"
+      - "**/*cgvalues*.yaml"
+    context_type: context
+    output_dir: output
+    workspace_dir: contexts
+    custom_key: custom_value01
+    contexts:
+      - name: local-cluster-prod
+        _config_file_path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod/local-cluster-prod-values.yaml"
+        account_id: "04000000"
+        active: true
+        archive_dir: local-archive
+        cloud: local
+        component_type: app
+        components:
+          metrics-server:
+            name: metrics-server
+            config:
+              active: true
+              dependencies: []
+              for_commit: true
+              path: common-templates/metrics-server
+              priority:
+              required: false
+            resolved_paths:
+              component_path: "/workspace/test_data/common-templates/metrics-server"
+              generated_path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod/generated/metrics-server"
+          nginx:
+            name: nginx
+            config:
+              active: true
+              dependencies: []
+              for_commit: false
+              path: common-templates/nginx
+              priority: 1
+              required: false
+            resolved_paths:
+              component_path: "/workspace/test_data/common-templates/nginx"
+        custom_key: custom_value04
+        environment: prod
+        commit_dir: local-generated
+        output_dir: output
+        path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod"
+        region: us-west-2
+        region_short: usw2
+        resolved_paths:
+          context_path: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod"
+          commit_dir: "/workspace/test_data/contexts/local/us-west-2/prod/local-cluster-prod/local-generated"
+        workspace: local
+        workspaces:
+          - name: local
+            archive_dir: archive
+            context_config_files:
+              - "**/*local*values.yaml"
+            context_type: cluster
+            output_dir: output
+            workspace_dir: local
+            custom_key: custom_value00

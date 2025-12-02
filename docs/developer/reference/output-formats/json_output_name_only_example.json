@@ -1,0 +1,5 @@
+{
+  "workspaces": ["aws", "local"],
+  "contexts": ["aws-cluster-dev", "aws-cluster-prod", "cluster-dev"],
+  "components": ["grafana", "metrics-server", "nginx", "prometheus"]
+}

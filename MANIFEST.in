@@ -1,0 +1,4 @@
+# Include source files in the distribution
+recursive-include source *.py
+include README.md
+include pyproject.toml

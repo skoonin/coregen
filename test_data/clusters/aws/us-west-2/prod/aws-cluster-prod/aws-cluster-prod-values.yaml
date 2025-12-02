@@ -1,0 +1,29 @@
+cluster:
+  name: aws-cluster-prod
+  environment: prod
+  active: true
+  component_type: app
+  account_id: 03999999
+  root_dir: clusters
+  region_short: usw2
+  region: us-west-2
+  app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: "0"
+        required: true
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        path: common-templates/metrics-server
+    - name: nginx
+      config:
+        active: true
+        path: clusters/aws/us-west-2/prod/aws-cluster-prod/service/nginx

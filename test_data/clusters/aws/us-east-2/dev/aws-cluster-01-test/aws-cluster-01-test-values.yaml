@@ -1,0 +1,36 @@
+cluster:
+  name: aws-cluster-01-test
+  commit_dir: aws-for-commit
+  environment: dev
+  archive_dir: aws-archive
+  active: true
+  component_type: app
+  account_id: 03999999
+  cloud: aws
+  region_short: use2
+  region: us-east-2
+  versions:
+    argocd: v2.8.1-context
+    kustomize: v5.0.3-context
+  app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: "0"
+        required: false
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: true
+        required: false
+        path: common-templates/metrics-server
+    - name: test-component
+      config:
+        active: true
+        for_commit: false
+        required: false

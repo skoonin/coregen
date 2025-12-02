@@ -1,0 +1,43 @@
+context:
+  name: context-prod
+  environment: prod
+  component_type: app
+  active: true
+  account_id: 03999999
+  commit_dir: for-commit-prod
+  region_short: usw2
+  region: us-west-2
+  app:
+    - name: prometheus-required
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: 1
+        required: true
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+    - name: metrics-server
+      config:
+        for_commit: true
+        priority: 4
+        active: true
+        path: common-templates/metrics-server
+    - name: nginx
+      config:
+        active: true
+        path: contexts/prod/context-prod/service/nginx
+        priority: 2
+    - name: prometheus-1-dep
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: 3
+        required: false
+        dependencies:
+          - name: nginx
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0

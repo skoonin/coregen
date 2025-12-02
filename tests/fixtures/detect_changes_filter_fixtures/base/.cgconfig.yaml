@@ -1,0 +1,14 @@
+# Base branch configuration for test fixtures
+workspaces:
+  - name: aws
+    path: clusters
+    config:
+      active: true
+      required: false
+      priority: 0
+  - name: local
+    path: contexts
+    config:
+      active: true
+      required: false
+      priority: 1

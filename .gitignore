@@ -1,0 +1,104 @@
+!.*
+
+*ssh*
+*key*
+# Byte‑compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# macOS metadata files
+._*
+.DS_Store
+
+# Distribution / packaging
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+share/python-wheels/
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+.cache
+.pytest_cache/
+pytestdebug.log
+test_reports/
+test_output.log
+.test_cleanup/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Environment configuration files
+.env
+.env.*
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Mypy / Pyright caches
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+.tox
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.komodoproject
+# Vim swap
+*.swp
+*.swo
+# Emacs
+*~
+
+# VS Code history
+.history/
+
+# Logs
+logs/
+*.log
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Project‑specific artifacts
+archive/
+artifacts/
+output/
+.test/
+.cl*
+*for-commit*/
+
+
+bin/
+**/*ssh/
+!ssh_config
+
+# Temporary files for detect-changes and other commands
+.cgtmp/

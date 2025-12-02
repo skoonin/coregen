@@ -1,0 +1,227 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coregen"
+authors = [{name = "skoonin"}]
+description = "Coregen - Configuration Generation Tool"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Code Generators",
+]
+dynamic = ["version"]
+dependencies = [
+    "pydantic>=2.10.0",
+    "rich>=13.7.0",
+    "typer>=0.14.0",
+    "pyyaml>=6.0.0",
+    "Jinja2>=3.1.6",
+    "GitPython>=3.1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/skoonin/coregen"
+"Repository" = "https://github.com/skoonin/coregen.git"
+"Issues" = "https://github.com/skoonin/coregen/issues"
+
+[project.optional-dependencies]
+dev = [
+    # Testing framework
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-html>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-timeout>=2.0.0",
+    # Code quality
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "flake8>=7.3.0",
+    "Flake8-pyproject>=1.2.3",
+    "pylint>=3.3.8",
+    "mypy>=1.17.1",
+    "bandit>=1.8.6",
+    # Development infrastructure
+    "tox>=4.0.0",
+    "pre-commit>=3.0.0",
+    # Type stubs
+    "types-PyYAML>=6.0.0",
+    "types-setuptools>=68.0.0",
+    # Build and release tools
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+
+[project.scripts]
+coregen = "coregen.cli.cli:app"
+
+[tool.setuptools]
+
+[tool.setuptools.package-dir]
+"" = "source"
+
+[tool.setuptools.packages.find]
+where = ["source"]
+include = ["coregen*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "coregen.__version__"}
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | test_data
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+known_third_party = ["pytest", "pydantic", "rich", "typer", "yaml", "jinja2"]
+known_first_party = ["coregen"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+skip_glob = ["test_data/*"]
+
+[tool.coverage.run]
+source = ["source"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/.venv/*",
+    "*/venv/*",
+    "setup.py",
+    "conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self\\.debug",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+]
+ignore_errors = true
+precision = 2
+fail_under = 79
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
+pretty_print = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+log_cli = false
+log_cli_level = "INFO"
+addopts = "--import-mode=importlib -p no:warnings -p no:cacheprovider"
+pythonpath = ["source"]
+markers = [
+    "performance: marks tests that check performance (deselect with '-m \"not performance\"')",
+    "integration: marks integration tests",
+    "unit: marks unit tests",
+    "e2e: marks end-to-end tests (deselect with '-m \"not e2e\"')",
+    "platform_macos: marks tests that only run on macOS",
+    "platform_linux: marks tests that only run on Linux",
+    "platform_agnostic: marks tests that should run on all platforms",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+mypy_path = "source"
+explicit_package_bases = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+ignore_missing_imports = true
+follow_imports = "normal"
+plugins = ["pydantic.mypy"]
+warn_redundant_casts = true
+warn_unreachable = true
+warn_no_return = true
+disallow_any_unimported = false
+disallow_any_expr = false
+disallow_any_decorated = false
+disallow_any_explicit = false
+disallow_subclassing_any = true
+disable_error_code = ["attr-defined", "index", "assignment", "union-attr", "operator", "unreachable"]
+
+[[tool.mypy.overrides]]
+module = "source.*"
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
+
+[tool.flake8]
+max-line-length = 160
+# E203: whitespace before ':' (black compatibility)
+# W503: line break before binary operator (black compatibility)
+# D100: Missing docstring in public module
+# D101: Missing docstring in public class
+# D102: Missing docstring in public method
+# D103: Missing docstring in public function
+# D104: Missing docstring in public package
+# D105: Missing docstring in magic method
+# D202: No blank lines allowed after function docstring
+# D205: 1 blank line required between summary line and description
+# D400: First line should be end with a period
+# D401: First line should be in imperative mood
+# F541: f-string is missing placeholders
+# F841: local variable is assigned to but never used
+# E402: module level import not at top of file
+# E501: line too long
+# F811: redefinition of unused name
+extend-ignore = ["E203", "W503", "D202", "D100", "D101", "D102", "D103", "D104", "D105", "D205", "D400", "D401", "F541", "F841", "E402", "E501", "F811"]
+exclude = [".git", "__pycache__", "docs/source/conf.py", "old", "build", "dist", ".venv", "test_data", "*_example.json"]
+
+[tool.pylint]
+max-line-length = 160
+disable = [
+    "C0330", "C0326",  # Black compatibility
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "R0801",  # Similar lines in 2 files (duplicate-code)
+]

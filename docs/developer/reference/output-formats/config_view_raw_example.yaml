@@ -1,0 +1,17 @@
+workspaces:
+- name: aws
+  context_type: cluster
+  context_config_files:
+  - '**/*aws*values.yaml'
+  archive_dir: archive
+  output_dir: output
+  workspace_dir: clusters
+- name: local
+  context_type: context
+  context_config_files:
+  - '**/*cgvalues*.yaml'
+  archive_dir: archive
+  output_dir: output
+  workspace_dir: contexts
+contexts: {}
+components: {}

@@ -1,0 +1,36 @@
+context:
+  name: context-dev
+  environment: dev
+  component_type: app
+  active: true
+  account_id: 03999999
+  region_short: use2
+  region: us-east-2
+  tool_versions:
+    docker: v24.0.0
+    npm: v9.8.0
+  app:
+    - name: prometheus
+      config:
+        active: true
+        for_commit: false
+        path: common-templates/prometheus
+        priority: 0
+        required: false
+      vars:
+        helm_chart_version: 0.9.1
+        crd_chart_version: 0.1.0
+    - name: metrics-server
+      config:
+        for_commit: true
+        active: false
+        path: common-templates/metrics-server
+    - name: nginx
+      config:
+        active: true
+    - name: test-service-unicode
+      type: ClusterIP
+      port: 800
+      config:
+        priority: 20
+        active: true

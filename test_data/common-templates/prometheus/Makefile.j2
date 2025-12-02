@@ -1,0 +1,40 @@
+# Prometheus Makefile
+
+{% if cluster is defined %}
+  {% set name = cluster.name %}
+{% elif context is defined %}
+  {% set name = context.name %}
+{% endif %}
+
+
+CLUSTER ?= "{{ name }}"
+
+dry-run: plan
+
+init:
+	terraform init
+
+plan: init
+	terraform plan
+
+apply: init
+	terraform apply
+
+auto-apply: init
+	terraform apply -auto-approve
+
+destroy: init
+	terraform destroy
+
+################################################
+## CI Targets
+################################################
+
+init-ci:
+	terraform init -input=false -no-color
+
+plan-ci:
+	terraform plan -no-color -compact-warnings -lock=false
+
+apply-ci:
+	terraform apply -auto-approve -input=false -no-color

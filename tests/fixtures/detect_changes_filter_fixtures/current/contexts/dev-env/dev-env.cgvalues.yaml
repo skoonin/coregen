@@ -1,0 +1,17 @@
+# Current: Local Dev Environment configuration
+environment: dev
+region: local
+active: true
+
+components:
+  postgres:
+    config:
+      active: true
+      required: false
+      priority: 2
+
+  redis:  # NEW component
+    config:
+      active: true
+      required: false
+      priority: 3
