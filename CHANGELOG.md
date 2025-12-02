@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## v1.0.6 - 2025-12-02
+## v1.0.6-dev - 2025-12-02
 
 > This commit is the initial commit of this repo after migrating from a private repository.
 
