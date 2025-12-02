@@ -146,7 +146,6 @@ gh pr create --base main --head release/1.0.2 \
 **Conflicts are normal** because `dev` and `main` have divergent histories. After each release, `dev` continues accumulating commits while `main` stays at the previous release. When merging the release PR, Git must reconcile these divergent states.
 
 **Why conflicts happen:**
-
 - `dev` accumulated 20-30+ commits since last release
 - These commits modified files that exist in `main` from the previous release
 - File reorganizations, test updates, and code changes create conflicts
