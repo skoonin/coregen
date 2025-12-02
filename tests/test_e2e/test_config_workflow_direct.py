@@ -102,6 +102,4 @@ def test_cli_version_with_subprocess():
 
     # Check success
     assert result.returncode == 0, "Version command failed"
-    assert (
-        "1.0.6-dev" in result.stdout
-    ), "Version output missing expected version string"
+    assert "1.0.6" in result.stdout, "Version output missing expected version string"
