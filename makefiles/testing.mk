@@ -15,7 +15,8 @@ test-filters: ## Manual filter smoke tests for detect-changes
 	@echo "Running manual filter smoke tests..."
 	@echo "Filter smoke tests not yet implemented"
 
-test-parallel: check-env
+.PHONY: test-parallel
+test-parallel: check-env ## Run tests in parallel (unit/integration only, excludes E2E)
 	@echo "Running tests in parallel (unit/integration only, excludes E2E)..."
 	@$(MAKE) _ensure-pytest-xdist
 	@$(PYTHON) -m pytest tests/ -n auto --dist loadgroup -m "not e2e" --maxfail=5

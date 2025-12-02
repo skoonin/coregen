@@ -30,8 +30,8 @@ setup-force: ## Force recreation of virtual environment
 	@echo "✓ Virtual environment forcefully recreated"
 	@echo "Note: Use 'make setup' for production-only environment"
 
-# deps-update - Update dependencies
-deps-update: .venv/touchfile
+.PHONY: deps-update
+deps-update: .venv/touchfile ## deps-update - Update dependencies
 	@echo "Updating dependencies..."
 	@./.venv/bin/pip install --upgrade pip setuptools wheel --quiet
 	@./.venv/bin/pip install -e ".[dev]" --upgrade --quiet

@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## v1.0.6-dev - Unreleased
+## v1.0.6-dev - 2025-12-02
+
+> This commit is the initial commit of this repo after migrating from a private repository.
 
 ### Added
 
@@ -25,7 +27,7 @@
 - Fixed `--changed-only` and `--deleted-only` flags not applying to matrix output format in detect-changes command
 - Fixed Logger not falling back to NORMAL level when invalid `LOG_LEVEL` environment variable is provided
 
-## v1.0.5-dev
+## v1.0.5
 
 ### Added
 
@@ -120,8 +122,6 @@
 
 ## v1.0.3 - 2025-10-09
 
-> **Note**: Version 1.0.3 was tagged but never officially released. All changes from 1.0.3 are included in version 1.0.4.
-
 ### Added
 
 - Comprehensive integration tests for detect-changes filtering in `tests/test_services/test_detect_changes_filtering.py`
@@ -170,10 +170,6 @@ coregen get "cm/*" --filter "component.name~=^prometheus"   # Starts with (ancho
 
 ## v1.0.2 - 2025-10-01
 
-### Added
-
-- Migration script `scripts/migration/migrate_config.py` with automatic backup functionality
-
 ### Changed
 
 - **BREAKING**: Component config field `generated` renamed to `for_commit`
@@ -191,23 +187,6 @@ coregen get "cm/*" --filter "component.name~=^prometheus"   # Starts with (ancho
 - Fixed detect-changes output sorting to match other coregen commands with priority and dependency-based ordering
   - Fixed ComponentSorterService to handle ComponentChange objects by checking both `component_dependencies` and `dependencies` fields
 - Removed unnecessary Console.debug() noise from verbose output (29 lines removed across 6 service files)
-
-### Migration Guide
-
-The field renaming changes clarify that these fields are for components that need files committed to the repository (e.g., ArgoCD configs), not just temporarily generated.
-
-**Migration Required**: Use the provided migration script to update existing configurations:
-
-```bash
-# Preview changes
-python scripts/migration/migrate_config.py --dry-run ./contexts/
-
-# Apply migration (creates backups)
-python scripts/migration/migrate_config.py ./contexts/
-
-# Remove backups after verification
-find . -name '*.backup*' -delete
-```
 
 ## v1.0.1 - 2025-09-16
 
@@ -237,5 +216,5 @@ find . -name '*.backup*' -delete
 - Make System Refactor - Simplify, Fix Build and Release Targets by @skoonin
 - help output cleanup by @skoonin
 - fix: eliminate duplicate context entries in matrix output by @skoonin
-- SRE-538 - Major refactor - Implement pip - Remove Builds by @skoonin
+- Implement pip - Remove Builds by @skoonin
 - v1 doc updates by @skoonin

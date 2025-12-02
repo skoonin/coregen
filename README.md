@@ -3,6 +3,7 @@
 Coregen is a configuration management and code generation tool designed for managing multi-environment deployments at scale. Configure once in YAML, deploy everywhere.
 
 [![CI: Code Quality & Tests](https://github.com/skoonin/coregen/actions/workflows/ci-code.yaml/badge.svg)](https://github.com/skoonin/coregen/actions/workflows/ci-code.yaml)
+[![CD: Coregen Release](https://github.com/skoonin/coregen/actions/workflows/cd-release.yaml/badge.svg)](https://github.com/skoonin/coregen/actions/workflows/cd-release.yaml)
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 

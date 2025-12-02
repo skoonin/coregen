@@ -4,15 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "coregen"
-authors = [{name = "skoonin"}]
 description = "Coregen - Configuration Generation Tool"
+authors = [{name = "Shawn Koonin"}]
 readme = "README.md"
+license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 classifiers = [
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
-    "Topic :: Software Development :: Code Generators",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
 ]
 dynamic = ["version"]
 dependencies = [
