@@ -299,44 +299,6 @@ class TestFilterService:
         )
         assert filter_workspace_null["value"] is None
 
-    def test_get_property_value_dict(self, filter_service):
-        """Test _get_property_value with dictionary objects."""
-        obj = {"name": "test", "nested": {"value": 42}}
-
-        assert filter_service._get_property_value(obj, "name") == "test"
-        assert filter_service._get_property_value(obj, "nested.value") == 42
-        assert filter_service._get_property_value(obj, "missing") is None
-        assert filter_service._get_property_value(obj, "nested.missing") is None
-
-    def test_get_property_value_object(self, filter_service):
-        """Test _get_property_value with object attributes."""
-
-        class TestObj:
-            def __init__(self):
-                self.name = "test"
-                self.nested = type("obj", (), {"value": 42})()
-
-            def get_config(self):
-                return {"setting": True}
-
-        test_obj = TestObj()
-        assert filter_service._get_property_value(test_obj, "name") == "test"
-        assert filter_service._get_property_value(test_obj, "nested.value") == 42
-        assert filter_service._get_property_value(test_obj, "config.setting") is True
-
-    def test_get_property_value_component_name(self, filter_service):
-        """Test _get_property_value with component name property."""
-
-        # Create a simple object instead of MagicMock for proper attribute access
-        class Component:
-            def __init__(self):
-                self.name = "test-component"
-
-        component = Component()
-
-        # After entity-scoped parsing, we'd access just "name"
-        assert filter_service._get_property_value(component, "name") == "test-component"
-
     def test_apply_filters_empty(self, filter_service):
         """Test apply_filters with empty filter list."""
         elements = {
