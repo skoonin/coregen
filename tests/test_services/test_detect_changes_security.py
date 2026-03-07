@@ -102,12 +102,24 @@ class TestTarExtractionSecurity:
         # Create mock members for normal files
         member1 = Mock()
         member1.name = "file1.txt"
+        member1.issym.return_value = False
+        member1.islnk.return_value = False
+        member1.isfile.return_value = True
+        member1.isdir.return_value = False
 
         member2 = Mock()
         member2.name = "subdir/file2.txt"
+        member2.issym.return_value = False
+        member2.islnk.return_value = False
+        member2.isfile.return_value = True
+        member2.isdir.return_value = False
 
         member3 = Mock()
         member3.name = "another/deep/path/file3.txt"
+        member3.issym.return_value = False
+        member3.islnk.return_value = False
+        member3.isfile.return_value = True
+        member3.isdir.return_value = False
 
         mock_tar.__iter__ = Mock(return_value=iter([member1, member2, member3]))
 
@@ -187,6 +199,10 @@ class TestTarExtractionSecurity:
         # Create mix of safe and unsafe members
         safe_member1 = Mock()
         safe_member1.name = "safe1.txt"
+        safe_member1.issym.return_value = False
+        safe_member1.islnk.return_value = False
+        safe_member1.isfile.return_value = True
+        safe_member1.isdir.return_value = False
 
         unsafe_member = Mock()
         unsafe_member.name = "../../escape.txt"
@@ -215,6 +231,10 @@ class TestTarExtractionSecurity:
         # Create mock member with dot segments but stays inside base
         member = Mock()
         member.name = "subdir/../otherdir/file.txt"  # Resolves to otherdir/file.txt
+        member.issym.return_value = False
+        member.islnk.return_value = False
+        member.isfile.return_value = True
+        member.isdir.return_value = False
 
         mock_tar.__iter__ = Mock(return_value=iter([member]))
         mock_tar.extract = MagicMock()
