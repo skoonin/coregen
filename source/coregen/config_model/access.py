@@ -8,6 +8,7 @@ configuration elements with pattern matching capabilities.
 import fnmatch
 from typing import Any
 
+from coregen.common.logger import Logger
 from coregen.common.path_service import PathService
 from coregen.config_model.models.components import Component
 from coregen.config_model.models.config import CoregenConfig
@@ -57,6 +58,7 @@ class ConfigAccess:
             self.workspaces = config_or_workspaces
 
         self.path_service = path_service
+        self.logger = Logger(self.__class__.__name__)
 
         # Build lookup tables for faster access
         self._workspace_lookup: dict[str, WorkspaceConfig] = {}

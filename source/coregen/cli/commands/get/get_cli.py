@@ -215,7 +215,6 @@ class Get(FormatValidationMixin):
             raise typer.Exit(1)
 
         if (not patterns or len(patterns) == 0) and not from_json and not json_file:
-            console.info(ctx.get_help())
             console.error("Either patterns or JSON input must be provided.")
             console.info(ctx.get_help())
             raise typer.Exit()  # Clean exit without error code

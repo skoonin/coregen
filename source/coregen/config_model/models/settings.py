@@ -5,6 +5,7 @@ Provides global defaults and configuration rules that apply across all workspace
 All program default values should be defined here to ensure consistency.
 """
 
+import functools
 import json
 from typing import Annotated, Any
 
@@ -126,6 +127,7 @@ class CoregenSettings(BaseModel):
 
 
 # Allows for lazy loading of settings
+@functools.lru_cache(maxsize=1)
 def get_settings() -> CoregenSettings:
     """
     Get the application settings singleton.
