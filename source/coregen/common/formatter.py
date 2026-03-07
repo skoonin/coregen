@@ -36,23 +36,24 @@ class Formatter:
         Returns:
             Formatted output according to the specified format
         """
-        format_map = {
-            "text": Formatter.Text(),
-            "json": Formatter.JSON(),
-            "yaml": Formatter.YAML(),
-            "matrix": Formatter.Matrix(),
-            "table": Formatter.Table(),
+        format_classes = {
+            "text": Formatter.Text,
+            "json": Formatter.JSON,
+            "yaml": Formatter.YAML,
+            "matrix": Formatter.Matrix,
+            "table": Formatter.Table,
         }
 
         logger.debug(f"Formatting output as: {output_format}")
 
-        formatter = format_map.get(output_format.lower())
-        if formatter is None:
+        formatter_class = format_classes.get(output_format.lower())
+        if formatter_class is None:
             logger.warning(
                 f"Unknown output format '{output_format}', defaulting to text"
             )
             return Text(str(content))
 
+        formatter = formatter_class()
         try:
             return formatter.format(content)
         except Exception as e:

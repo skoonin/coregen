@@ -124,64 +124,17 @@ class FilterService:
                     filter_spec["value"] = True
                 elif filter_spec["value"].lower() == "false":
                     filter_spec["value"] = False
-                # Convert to integer
-                elif filter_spec["value"].isdigit():
-                    filter_spec["value"] = int(filter_spec["value"])
-                # Convert to float
-                elif (
-                    filter_spec["value"].replace(".", "", 1).isdigit()
-                    and filter_spec["value"].count(".") == 1
-                ):
-                    filter_spec["value"] = float(filter_spec["value"])
+                else:
+                    try:
+                        filter_spec["value"] = int(filter_spec["value"])
+                    except ValueError:
+                        try:
+                            if filter_spec["value"].count(".") == 1:
+                                filter_spec["value"] = float(filter_spec["value"])
+                        except ValueError:
+                            pass
 
         return filter_spec
-
-    def validate_filter_fields(
-        self, filters: list[dict[str, Any]], entity_type: str
-    ) -> list[str]:
-        """Validate that all filter fields exist for the given entity type.
-
-        Args:
-            filters: List of filter specifications to validate
-            entity_type: Type of entity to validate against ("workspace", "context", "component")
-
-        Returns:
-            List of error messages for invalid fields (empty if all valid)
-        """
-        errors = []
-
-        for filter_spec in filters:
-            field_name = filter_spec.get("property")
-            if not field_name:
-                continue
-
-            # Check if field exists
-            if not self.field_discovery.validate_field_exists(field_name, entity_type):
-                # Get suggestions for similar field names
-                suggestions = self.field_discovery.get_field_suggestions(
-                    field_name, entity_type
-                )
-
-                if suggestions:
-                    error_msg = f"Unknown field '{field_name}' for {entity_type}. Did you mean: {', '.join(suggestions)}?"
-                else:
-                    error_msg = f"Unknown field '{field_name}' for {entity_type}"
-
-                errors.append(error_msg)
-
-        return errors
-
-    def get_available_fields(self, entity_type: str) -> list[str]:
-        """Get list of available field names for the given entity type.
-
-        Args:
-            entity_type: Type of entity ("workspace", "context", "component")
-
-        Returns:
-            Sorted list of available field names
-        """
-        fields = self.field_discovery.discover_fields(entity_type)
-        return sorted(fields.keys())
 
     def apply_filters(
         self, elements: dict[str, Any], filters: list[dict[str, Any]]
@@ -761,22 +714,6 @@ class FilterService:
             )
             return None
 
-    def _get_property_value(self, obj: Any, property_path: str) -> Any:
-        """Get a property value from an object using a dot-separated path.
-
-        DEPRECATED: This method is kept for backward compatibility but should be
-        replaced with _get_nested_attr for Pydantic models.
-
-        Args:
-            obj: Object to get property from
-            property_path: Dot-separated path to property
-
-        Returns:
-            Property value or None if not found
-        """
-        # For backward compatibility, delegate to the new method
-        return self._get_nested_attr(obj, property_path)
-
     def _get_workspace_for_context(self, context: Any) -> str | None:
         """Get the workspace name for a context.
 
@@ -827,11 +764,6 @@ class FilterService:
             else:
                 # Cannot compare non-None values to None with numeric operators
                 return False
-
-        # Special handling for None values in numeric comparisons
-        # This ensures priority>=10 doesn't show components with priority=None
-        if left is None and operator in (">", "<", ">=", "<="):
-            return False
 
         # Handle regex operators BEFORE type conversion
         # This preserves the pattern as a string for regex matching
