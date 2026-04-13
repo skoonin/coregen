@@ -18,7 +18,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "pydantic>=2.10.0",
+    "pydantic>=2.12.5",
     "rich>=13.7.0",
     "typer>=0.14.0",
     "pyyaml>=6.0.0",
