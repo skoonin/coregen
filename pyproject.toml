@@ -51,7 +51,7 @@ dev = [
     "tox>=4.0.0",
     "pre-commit>=3.0.0",
     # Type stubs
-    "types-PyYAML>=6.0.0",
+    "types-PyYAML>=6.0.12.20260408",
     "types-setuptools>=68.0.0",
     # Build and release tools
     "build>=1.0.0",
