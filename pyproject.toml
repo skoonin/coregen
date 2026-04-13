@@ -52,7 +52,7 @@ dev = [
     "pre-commit>=3.0.0",
     # Type stubs
     "types-PyYAML>=6.0.0",
-    "types-setuptools>=68.0.0",
+    "types-setuptools>=82.0.0.20260408",
     # Build and release tools
     "build>=1.0.0",
     "twine>=5.0.0",
