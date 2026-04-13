@@ -49,7 +49,7 @@ dev = [
     "bandit>=1.8.6",
     # Development infrastructure
     "tox>=4.0.0",
-    "pre-commit>=3.0.0",
+    "pre-commit>=4.5.1",
     # Type stubs
     "types-PyYAML>=6.0.0",
     "types-setuptools>=68.0.0",
