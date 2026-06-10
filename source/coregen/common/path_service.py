@@ -1,6 +1,5 @@
 # common/path_service.py
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -163,16 +162,15 @@ class PathService:
 
             # Now, determine the final component path
             if custom_path_str:
-                # If custom_path is provided, resolve it relative to root
-                if os.path.isabs(custom_path_str):
-                    final_component_path = Path(custom_path_str)
-                else:
-                    # Assuming self.resolver has access to root_path or similar base
-                    # If PathResolver doesn't store root_path, we might need to get it from settings
-                    root_path = getattr(
-                        self.resolver, "root_path", Path(".")
-                    )  # Get root_path safely
-                    final_component_path = (root_path / custom_path_str).resolve()
+                # Resolve through the resolver so component custom paths get
+                # the same root-containment enforcement as workspace/context
+                # custom paths.
+                final_component_path = self.resolver.get_component_path(
+                    workspace_name=workspace.name,
+                    context_name=context.name,
+                    component_name=component.name,
+                    custom_path=custom_path_str,
+                )
                 self.logger.debug(
                     f"Using custom path override for component '{component.name}': {final_component_path}"
                 )

@@ -30,7 +30,6 @@ from coregen.config_model.provider import ConfigurationProvider
 from coregen.config_model.template_context import (
     TemplateContextAdapter,
     create_template_context,
-    render_with_context,
 )
 
 # Create module-level logger
@@ -47,5 +46,4 @@ __all__ = [
     "ConfigDictValidator",
     "TemplateContextAdapter",
     "create_template_context",
-    "render_with_context",
 ]

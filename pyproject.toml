@@ -220,7 +220,7 @@ exclude = [".git", "__pycache__", "docs/source/conf.py", "old", "build", "dist",
 [tool.pylint]
 max-line-length = 160
 disable = [
-    "C0330", "C0326",  # Black compatibility
+    # C0330/C0326 removed: deleted from modern pylint (black compat built in)
     "missing-module-docstring",
     "missing-class-docstring",
     "missing-function-docstring",

@@ -6,6 +6,7 @@ These tests focus on security validation methods that prevent:
 """
 
 import tarfile
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -102,12 +103,24 @@ class TestTarExtractionSecurity:
         # Create mock members for normal files
         member1 = Mock()
         member1.name = "file1.txt"
+        member1.issym.return_value = False
+        member1.islnk.return_value = False
+        member1.isfile.return_value = True
+        member1.isdir.return_value = False
 
         member2 = Mock()
         member2.name = "subdir/file2.txt"
+        member2.issym.return_value = False
+        member2.islnk.return_value = False
+        member2.isfile.return_value = True
+        member2.isdir.return_value = False
 
         member3 = Mock()
         member3.name = "another/deep/path/file3.txt"
+        member3.issym.return_value = False
+        member3.islnk.return_value = False
+        member3.isfile.return_value = True
+        member3.isdir.return_value = False
 
         mock_tar.__iter__ = Mock(return_value=iter([member1, member2, member3]))
 
@@ -187,6 +200,10 @@ class TestTarExtractionSecurity:
         # Create mix of safe and unsafe members
         safe_member1 = Mock()
         safe_member1.name = "safe1.txt"
+        safe_member1.issym.return_value = False
+        safe_member1.islnk.return_value = False
+        safe_member1.isfile.return_value = True
+        safe_member1.isdir.return_value = False
 
         unsafe_member = Mock()
         unsafe_member.name = "../../escape.txt"
@@ -215,6 +232,10 @@ class TestTarExtractionSecurity:
         # Create mock member with dot segments but stays inside base
         member = Mock()
         member.name = "subdir/../otherdir/file.txt"  # Resolves to otherdir/file.txt
+        member.issym.return_value = False
+        member.islnk.return_value = False
+        member.isfile.return_value = True
+        member.isdir.return_value = False
 
         mock_tar.__iter__ = Mock(return_value=iter([member]))
         mock_tar.extract = MagicMock()
@@ -225,3 +246,29 @@ class TestTarExtractionSecurity:
 
         # Verify the member was extracted
         mock_tar.extract.assert_called_once_with(member, tmp_path)
+
+
+@pytest.mark.integration
+class TestSiblingPrefixEscape:
+    """Structural containment: string startswith() treats '<base>_evil' as
+    inside '<base>'; the check must compare path components.
+    """
+
+    def test_safe_extract_rejects_sibling_prefix_path(self, detect_changes_service):
+        # No tmp_path: containment is computed on resolved paths, which do not
+        # need to exist, and the shared conftest patches Path.resolve in ways
+        # that break tmp_path creation ordering.
+        base = Path("/nonexistent-test-root/extract")
+        mock_tar = MagicMock(spec=tarfile.TarFile)
+        member = Mock()
+        # Resolves to a SIBLING directory whose name starts with the base name
+        member.name = "../extract_evil/payload.txt"
+        member.issym.return_value = False
+        member.islnk.return_value = False
+        member.isfile.return_value = True
+        member.isdir.return_value = False
+        mock_tar.__iter__ = Mock(return_value=iter([member]))
+
+        with pytest.raises(RuntimeError, match="Unsafe path"):
+            detect_changes_service._safe_extract(mock_tar, base)
+        mock_tar.extract.assert_not_called()

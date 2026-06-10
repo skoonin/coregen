@@ -185,13 +185,11 @@ class PathResolver:
         **kwargs: Any,
     ) -> Path:
         """Get the path for a component within a context."""
-        # If custom_path is provided, use it directly
+        # Custom paths get the same root-containment enforcement as
+        # workspace/context custom paths; unchecked absolute values let a
+        # config point a component outside the repository.
         if custom_path:
-            return (
-                Path(custom_path)
-                if os.path.isabs(custom_path)
-                else self.root_path / custom_path
-            )
+            return self._resolve_custom_path(custom_path)
 
         # Get the context path from stored paths
         path_key = f"{workspace_name}/{context_name}"

@@ -158,11 +158,20 @@ def test_custom_component_path(
 ):
     """Test component path resolution with custom path."""
     test_component.config.path = "/custom/path"
+    # Custom paths are resolved through the resolver, which enforces
+    # root-directory containment (M2): assert the delegation, not verbatim use.
+    mock_resolver.get_component_path.return_value = Path("/root/custom/path")
     paths = service.resolve_component_paths(
         test_component, test_context, test_workspace
     )
 
-    assert paths["component_path"] == Path("/custom/path")
+    mock_resolver.get_component_path.assert_called_with(
+        workspace_name=test_workspace.name,
+        context_name=test_context.name,
+        component_name=test_component.name,
+        custom_path="/custom/path",
+    )
+    assert paths["component_path"] == Path("/root/custom/path")
 
 
 def test_resolve_template_path(service, mock_resolver):

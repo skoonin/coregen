@@ -7,7 +7,7 @@ and path pattern processing.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from coregen.cli.global_options import GlobalOptions
@@ -65,45 +65,37 @@ class ServicesBase(ServiceBase):
             config_file: Optional path to the configuration file
             global_options: Optional GlobalOptions instance instead of individual options
         """
-        # If global_options is provided, use it instead of individual options
+        # If global_options is provided, pass it to parent which handles extraction
         if global_options is not None:
-            # Extract values from GlobalOptions
-            dry_run = getattr(global_options, "dry_run", dry_run)
-            file_action = getattr(global_options, "file_action", file_action)
-            quiet = getattr(global_options, "quiet", quiet)
-            verbose = getattr(global_options, "verbose", verbose)
-            no_color = getattr(global_options, "no_color", no_color)
-            config_file = getattr(global_options, "config_file", config_file)
-
-            # Store global options for service use
-            self._global_options = global_options
+            super().__init__(
+                console=console,
+                file_manager=file_manager,
+                workspace_initializer=workspace_initializer,
+                global_options=global_options,
+                config_file=getattr(global_options, "config_file", config_file),
+            )
         else:
-            # Store individual options for reference
-            self._global_options = None
-
-        # Call the parent class constructor
-        super().__init__(
-            console=console,
-            file_manager=file_manager,
-            workspace_initializer=workspace_initializer,
-            dry_run=dry_run,
-            file_action=file_action,
-            quiet=quiet,
-            verbose=verbose,
-            no_color=no_color,
-            config_file=config_file,
-        )
+            super().__init__(
+                console=console,
+                file_manager=file_manager,
+                workspace_initializer=workspace_initializer,
+                dry_run=dry_run,
+                file_action=file_action,
+                quiet=quiet,
+                verbose=verbose,
+                no_color=no_color,
+                config_file=config_file,
+            )
 
         # Initialize configuration provider if not provided
         self._config_provider = config_provider or ConfigurationProvider(
             config_mode=True,
             lenient_validation=True,
-            # Pass global options to the configuration provider
-            dry_run=dry_run,
-            file_action=file_action,
-            quiet=quiet,
-            verbose=verbose,
-            no_color=no_color,
+            dry_run=self.dry_run,
+            file_action=self.file_action,
+            quiet=self.quiet,
+            verbose=self.verbose,
+            no_color=self.no_color,
         )
 
         # Initialize path service from config provider
@@ -490,40 +482,3 @@ class ServicesBase(ServiceBase):
             Filter specification dictionary
         """
         return self.filter_service.parse_filter_expression(filter_string)
-
-    def determine_output_sections(
-        self, patterns: list[str] | None = None, entity_type: str | None = None
-    ) -> set[str]:
-        """Determine which output sections to include based on patterns and entity type.
-
-        Args:
-            patterns: Optional list of patterns for pattern-based section determination
-            entity_type: Optional entity type filter to override section determination
-
-        Returns:
-            Set of section names to include in output ('workspaces', 'contexts', 'components')
-        """
-        if entity_type:
-            # --type flag specified: override section determination
-            if entity_type == "workspace":
-                return {"workspaces"}
-            elif entity_type == "context":
-                return {"contexts"}
-            elif entity_type == "component":
-                return {"components"}
-            else:
-                self.logger.warning(
-                    f"Unknown entity type: {entity_type}, using pattern-based sections"
-                )
-                # Fall through to pattern-based logic
-
-        if patterns is None:
-            # JSON input or no patterns: include all sections
-            return {"workspaces", "contexts", "components"}
-        else:
-            # Use pattern-based section determination (must be implemented by subclass)
-            if hasattr(self, "_determine_sections_from_patterns"):
-                return cast(set[str], self._determine_sections_from_patterns(patterns))
-            else:
-                # Fallback to all sections if method not implemented
-                return {"workspaces", "contexts", "components"}

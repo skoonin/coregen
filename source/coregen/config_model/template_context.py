@@ -209,33 +209,3 @@ def create_template_context(context: Context) -> dict[str, Any]:
     """
     adapter = TemplateContextAdapter(context)
     return adapter.to_dict()
-
-
-def render_with_context(template_str: str, context: Context) -> str:
-    """
-    Render a template with a Context object.
-
-    Args:
-        template_str: The template string to render
-        context: The Context object to use for rendering
-
-    Returns:
-        str: The rendered template
-
-    Raises:
-        ImportError: If Jinja2 is not installed
-    """
-    try:
-        from jinja2 import Template
-
-        # Create template context
-        template_context = create_template_context(context)
-
-        # Create and render template
-        template = Template(template_str)
-        result = template.render(**template_context)
-        return str(result)
-    except ImportError as exc:
-        raise ImportError(
-            "Jinja2 is required for template rendering. Please install it with 'pip install jinja2'."
-        ) from exc
