@@ -241,7 +241,9 @@ class ContextMatcher(Matcher):
 
         # Special handling for recursive patterns
         if len(segments) >= 2 and segments[1] == "**":
-            matched_contexts = self.config_access.find_contexts(ctx_name_pattern)
+            matched_contexts = self.config_access.find_contexts(
+                ctx_name_pattern, from_matcher=True
+            )
             for ctx in matched_contexts:
                 self._add_matched_context(
                     ctx, result, add_children=True, add_parent=True
@@ -250,7 +252,9 @@ class ContextMatcher(Matcher):
             return matched_something
 
         # Regular pattern handling
-        matched_contexts = self.config_access.find_contexts(ctx_name_pattern)
+        matched_contexts = self.config_access.find_contexts(
+            ctx_name_pattern, from_matcher=True
+        )
 
         if len(segments) == 1:  # context/ctx_pattern
             for ctx in matched_contexts:

@@ -499,6 +499,7 @@ class GenerateService(ServicesBase):
         # Track all components we need to include (preserving order)
         all_components_ordered = []  # List of (context_name, comp_name, component)
         components_to_include = set()  # Set of comp_keys for quick lookup
+        component_by_key: dict[str, Component] = {}  # "ctx/name" -> component
 
         # Add existing components first (they're already filtered)
         for comp_key, comp in existing_components.items():
@@ -532,6 +533,7 @@ class GenerateService(ServicesBase):
 
                 # Add to ordered list for final assembly
                 all_components_ordered.append((context_name, comp_name, comp))
+                component_by_key[comp_key] = comp
 
                 # Check if this component is marked as required
                 if hasattr(comp.config, "required") and comp.config.required:
@@ -556,15 +558,8 @@ class GenerateService(ServicesBase):
             processed.add(comp_key)
 
             context_name = comp_key.split("/")[0]
-            comp_name = comp_key.split("/")[1]
 
-            # Find the component in our ordered list
-            component = None
-            for ctx_name, c_name, comp in all_components_ordered:
-                if ctx_name == context_name and c_name == comp_name:
-                    component = comp
-                    break
-
+            component = component_by_key.get(comp_key)
             if not component:
                 continue
 
