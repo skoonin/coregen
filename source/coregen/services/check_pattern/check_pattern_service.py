@@ -160,7 +160,7 @@ class CheckPatternService(ServicesBase):
         }
 
         # Apply type filtering if specified
-        type_value = type.value if hasattr(type, "value") else type
+        type_value = getattr(type, "value", type)
         if type_value:
             matched_results: dict[str, Any] = results["matched"]
             results["matched"] = self._filter_results_by_type(

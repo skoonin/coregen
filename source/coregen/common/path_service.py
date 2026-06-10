@@ -101,6 +101,10 @@ class PathService:
             workspace_config={"context_type": workspace.context_type},
             config_file_path=getattr(context, "config_file_path", None),
         )
+        if context_path is None:
+            raise ValueError(
+                f"Failed to resolve context path for '{workspace.name}/{context.name}'"
+            )
 
         if hasattr(context, "set_internal_path"):
             # Set the internal path as relative to root
@@ -120,7 +124,7 @@ class PathService:
             else self.resolver.get_commit_dir(str(context_path))
         )
 
-        return {"context_path": context_path, "commit_dir": commit_dir}  # type: ignore[dict-item]
+        return {"context_path": context_path, "commit_dir": commit_dir}
 
     def resolve_component_paths(
         self, component: Any, context: Any, workspace: Any
