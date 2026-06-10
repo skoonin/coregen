@@ -38,7 +38,7 @@ pip install -e .[dev]
 pip install -e .
 
 # Create symlink
-ln -sf "$(pwd)/source/coregen/main.py" "$(pwd)/cg"
+ln -sf "$(pwd)/source/coregen/__main__.py" "$(pwd)/cg"
 chmod +x "$(pwd)/cg"
 ```
 

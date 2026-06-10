@@ -108,7 +108,12 @@ class Context(BaseModel):
 
     # Required fields
     name: str = Field(..., description="Required: Context name")
-    environment: str = Field(..., description="Required: Environment this context belongs to")
+
+    # Optional, strongly recommended; defaults to null (from settings) when omitted
+    environment: str | None = Field(
+        default_factory=lambda: CoregenSettings().context.environment,
+        description="Context's environment. Defaults to the value in settings.",
+    )
 
     # Processing flags
     active: bool = Field(
