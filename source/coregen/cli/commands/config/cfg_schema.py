@@ -200,9 +200,10 @@ class SchemaCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options using the standardized pattern  # type: ignore[unreachable]
-        global_options = GlobalOptions.from_context(self.ctx)
-        options = global_options.to_dict()
+        # Reuse global options fetched in run(); fetch on demand otherwise  # type: ignore[unreachable]
+        if self.global_options is None:
+            self.global_options = GlobalOptions.from_context(self.ctx)
+        options = self.global_options.to_dict()
 
         # Add command-specific options
         options.update(

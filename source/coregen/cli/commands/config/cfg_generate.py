@@ -430,12 +430,15 @@ class GenerateCommand:
 
             self.logger.debug(f"Custom values: {custom_values}")
 
-            # Generate configuration with config_file_only option
-            self.service.generate_config(
+            # Generate configuration; render the service's status output here
+            result = self.service.generate_config(
                 config_file_path=self.options["output_config_path"],
                 config_file_only=self.options["config_file_only"],
                 custom_values=custom_values,
             )
+
+            for message in result.messages:
+                self.console.info(message)
 
         except FileNotFoundError as e:
             self.logger.error(f"Config file not found: {str(e)}")

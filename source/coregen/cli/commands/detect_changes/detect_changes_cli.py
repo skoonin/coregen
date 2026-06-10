@@ -1,6 +1,5 @@
 """Detect Changes command implementation V2 - Generation-based approach."""
 
-import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -599,7 +598,7 @@ class DetectChanges(FormatValidationMixin):
         except Exception as e:
             console.error(f"Failed to detect changes: {str(e)}")
             self.logger.exception("Error during detect-changes command execution:")
-            sys.exit(2)
+            raise typer.Exit(2)
         finally:
             # Always reset output format
             console.set_output_format(None)

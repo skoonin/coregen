@@ -1,6 +1,5 @@
 """Generate files command."""
 
-import sys
 import traceback
 from pathlib import Path
 from typing import Annotated, Any
@@ -60,7 +59,7 @@ class GenerateCommand:
         self.ctx: typer.Context | None = None
         self.global_options: GlobalOptions | None = None
         self.service: Any | None = None
-        self.console = Console()
+        self.console = Console
         self.formatter = GenerateFormatter(self.console)
         self.output_format: Any | None = None  # Track output format for cleanup
 
@@ -368,29 +367,16 @@ class GenerateCommand:
         )
 
         try:
-            # Set output format if needed
-            if self.output_format == GenerateOutputFormat.TABLE:
-                # For table output, we handle formatting ourselves
-                # Create a modified global_options with quiet=True for table output
-                if self.global_options is None:
-                    raise RuntimeError("Global options not initialized")
-                table_global_options = GlobalOptions(
-                    dry_run=self.global_options.dry_run,
-                    file_action=self.global_options.file_action,
-                    quiet=True,  # Suppress service output in table mode
-                    verbose=self.global_options.verbose,
-                    no_color=self.global_options.no_color,
-                    config_file=self.global_options.config_file,
-                )
-                # Create service instance with modified options
-                self.service = GenerateService(global_options=table_global_options)
-            else:
-                # For text output, ensure console is in correct mode
+            if self.global_options is None:
+                raise RuntimeError("Global options not initialized")
+
+            # The service returns structured data; the formatter renders it.
+            # Text mode prints per-component status to the console, so keep it
+            # in TEXT routing; table mode renders its own Rich table.
+            if self.output_format != GenerateOutputFormat.TABLE:
                 self.console.set_output_format(OutputFormat.TEXT)
-                # Create service instance with standard global options
-                if self.global_options is None:
-                    raise RuntimeError("Global options not initialized")
-                self.service = GenerateService(global_options=self.global_options)
+
+            self.service = GenerateService(global_options=self.global_options)
 
             # Process generation
             results = self._process_generation(options)
@@ -412,22 +398,22 @@ class GenerateCommand:
                 self.console.error("Run with CG_LOG_LEVEL=debug for detailed traceback")
             else:
                 self.console.error(f"Failed to generate files: {str(e)}")
-            sys.exit(1)
+            raise typer.Exit(1)
         except FileNotFoundError as e:
             self.logger.error(f"File not found: {str(e)}")
             self.console.error(f"File not found: {str(e)}")
             self.console.error(
                 "Please check that all required files and directories exist"
             )
-            sys.exit(1)
+            raise typer.Exit(1)
         except PermissionError as e:
             self.logger.error(f"Permission denied: {str(e)}")
             self.console.error(f"Permission denied: {str(e)}")
             self.console.error("Please check file and directory permissions")
-            sys.exit(1)
+            raise typer.Exit(1)
         except KeyboardInterrupt:
             self.console.warning("\nGeneration cancelled by user")
-            sys.exit(130)  # Standard exit code for SIGINT
+            raise typer.Exit(130)  # Standard exit code for SIGINT
         except Exception as e:
             self.logger.error(f"Unexpected error in generate command: {str(e)}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
@@ -439,7 +425,7 @@ class GenerateCommand:
                 self.console.error(f"Error type: {type(e).__name__}")
             else:
                 self.console.error(f"Failed to generate files: {str(e)}")
-            sys.exit(1)
+            raise typer.Exit(1)
         finally:
             # Always reset output format
             if self.output_format and self.output_format != GenerateOutputFormat.TEXT:
@@ -454,4 +440,4 @@ class GenerateCommand:
                     f"Run FAILED. [yellow1]{num_errors}[/] errors occurred during generation. "
                     "Please check your templates and context files."
                 )
-            sys.exit(2)
+            raise typer.Exit(2)

@@ -75,9 +75,9 @@ def check_pattern_service_setup():
         "components": {"test-context/test-component": mock_component},
     }
 
-    # Patch _get_workspace_for_context method as a fallback to ensure compatibility
+    # Patch get_workspace_for_context method as a fallback to ensure compatibility
     with patch.object(
-        FilterService, "_get_workspace_for_context", return_value="test-workspace"
+        FilterService, "get_workspace_for_context", return_value="test-workspace"
     ) as get_workspace_patch:
         yield {
             "service": service,
@@ -365,7 +365,7 @@ class TestCheckPatternServiceAdditional:
         )
 
     def test_get_workspace_for_context(self, check_pattern_service_setup):
-        """Test the _get_workspace_for_context method."""
+        """Test the get_workspace_for_context method."""
         # Unpack fixture
         service = check_pattern_service_setup["service"]
         mock_workspace = check_pattern_service_setup["mock_workspace"]
@@ -391,7 +391,7 @@ class TestCheckPatternServiceAdditional:
         context.name = "test-context"
 
         # Call the actual method on the filter service
-        result = service.filter_service._get_workspace_for_context(context)
+        result = service.filter_service.get_workspace_for_context(context)
 
         # Verify the result is the workspace name
         assert result == "test-workspace"

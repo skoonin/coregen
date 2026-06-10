@@ -1,6 +1,5 @@
 """Get command implementation."""
 
-import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -416,7 +415,7 @@ class Get(FormatValidationMixin):
                 console.error(f"Failed to get elements: {error_msg}")
             # Log traceback for debugging
             self.logger.exception("Error during get command execution:")
-            sys.exit(2)
+            raise typer.Exit(2)
         finally:
             # Clear the output format when done
             console.set_output_format(None)

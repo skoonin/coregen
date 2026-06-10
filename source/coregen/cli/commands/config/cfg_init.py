@@ -185,9 +185,10 @@ class InitCommand:
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options using the standardized pattern
-        global_options = GlobalOptions.from_context(self.ctx)
-        options = global_options.to_dict()
+        # Reuse global options fetched in run(); fetch on demand otherwise
+        if self.global_options is None:
+            self.global_options = GlobalOptions.from_context(self.ctx)
+        options = self.global_options.to_dict()
 
         # No command-specific options for init command
         return options
@@ -219,11 +220,14 @@ class InitCommand:
             # Initialize the service with global options
             self.service = ConfigInitService(global_options=self.global_options)
 
-            # Delegate to the service to handle the business logic
-            success = self.service.initialize_config(config_path)
+            # Delegate to the service for business logic; render its output here
+            result = self.service.initialize_config(config_path)
+
+            for message in result.messages:
+                self.console.info(message)
 
             # Exit with appropriate code
-            if not success:
+            if not result.success:
                 raise typer.Exit(1)
 
         except typer.Exit as e:

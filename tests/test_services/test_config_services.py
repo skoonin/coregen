@@ -418,7 +418,7 @@ class TestConfigInitService:
         init_service_setup[
             "mock_workspace_initializer"
         ].initialize_workspace.assert_called_once()
-        assert result is True
+        assert result.success is True
 
     def test_initialize_config_file_not_found(self, init_service_setup):
         """Test initializing config with non-existent file."""
@@ -431,7 +431,7 @@ class TestConfigInitService:
 
         # Verify file was not processed
         assert not mock_config_provider.load_config.called
-        assert result is False
+        assert result.success is False
 
 
 @pytest.fixture

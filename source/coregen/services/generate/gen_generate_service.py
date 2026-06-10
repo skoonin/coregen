@@ -240,13 +240,6 @@ class GenerateService(ServicesBase):
                     # Dict maintains insertion order in Python 3.7+
                     context_components[component_name] = component
 
-            # Show context header in verbose mode
-            if self.verbose and context_components:
-                self.console.debug(f"Generating context: {context_name}")
-                self.console.debug(
-                    f"  Components: {', '.join(context_components.keys())}"
-                )
-
             # Generate files for this context and its components
             context_results = self._generate_for_context(
                 context, context_components, skip_commit_dir, output_dir
@@ -442,25 +435,6 @@ class GenerateService(ServicesBase):
                 "errors": component_errors,
             }
             results["component_details"].append(component_detail)
-
-            # Show status for this component after ALL locations are processed
-            if not self.quiet:
-                if self.verbose:
-                    # In verbose mode, show total file count across all locations
-                    if component_errors:
-                        self.console.debug(
-                            f"    ✗ {component_name}: {len(component_errors)} errors"
-                        )
-                    else:
-                        self.console.debug(
-                            f"    ✓ {component_name}: {component_file_count} files"
-                        )
-                else:
-                    # In normal mode, just show status
-                    if component_errors:
-                        self.console.error(f"  ✗ {context.name}/{component_name}")
-                    else:
-                        self.console.success(f"  ✓ {context.name}/{component_name}")
 
         return results
 
