@@ -201,14 +201,12 @@ def test_generate_with_missing_variable_errors(cli_runner, cli_app):
         }
 
         # The test will throw a SystemExit exception, which is expected
-        with patch(
-            "coregen.cli.commands.generate.gen_generate_cli.console.error"
-        ) as mock_error:
+        with patch("coregen.cli.commands.generate.gen_generate_cli.console.error") as _:
             with patch(
                 "coregen.cli.commands.generate.gen_generate_cli.console.info"
-            ) as mock_info:
+            ) as _:
                 # Skip showing stdout and don't raise exceptions
-                result = cli_runner.invoke(
+                cli_runner.invoke(
                     cli_app, ["generate", "workspace/aws"], catch_exceptions=True
                 )
 
@@ -351,11 +349,9 @@ def test_generate_output_dir_default_none(cli_runner, cli_app):
 
 def test_generate_missing_path_argument(cli_runner, cli_app):
     """Test error handling when path argument is missing."""
-    with patch(
-        "coregen.cli.commands.generate.gen_generate_cli.console.error"
-    ) as mock_error:
+    with patch("coregen.cli.commands.generate.gen_generate_cli.console.error") as _:
         # Use catch_exceptions to prevent test from failing due to SystemExit
-        result = cli_runner.invoke(cli_app, ["generate"], catch_exceptions=True)
+        cli_runner.invoke(cli_app, ["generate"], catch_exceptions=True)
 
         # Simply verify the command can be invoked without crashing the test
         # Skip checking exit code as it might vary between test environments

@@ -471,7 +471,7 @@ class TestGetService:
                 mock_pattern_selector.return_value = mock_selector_instance
 
                 # Call get_elements with filters
-                result = service.get_elements(
+                service.get_elements(
                     patterns=["component/**"],
                     filters=["active=true"],
                     include_inactive=False,

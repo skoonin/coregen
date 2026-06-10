@@ -184,9 +184,7 @@ class TestFormatTypeService:
                     "components": sample_flat_data["components"]
                 }
 
-                result = service.apply_format(
-                    sample_flat_data, "flat", type_filter="component"
-                )
+                service.apply_format(sample_flat_data, "flat", type_filter="component")
 
                 # TypeFilterService should be instantiated and called
                 mock_filter_service.assert_called_once_with(service.logger)

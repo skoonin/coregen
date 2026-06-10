@@ -18,6 +18,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-ci
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   _TYPER_FORCE_DISABLE_TERMINAL: "1" # ensures no-color
 
@@ -48,7 +51,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Check formatting with tox
         run: |
           tox -e format-check
@@ -78,7 +81,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Lint with tox
         run: |
           tox -e lint
@@ -108,17 +111,28 @@ jobs:
       - name: Install mypy and dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install mypy types-PyYAML types-setuptools
-      - name: Run mypy type checking on changed files
+          pip install -e .[dev] -c constraints.txt
+      - name: Run mypy type checking
         run: |
-          # Get changed Python files in source directory
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.sha }} | grep '^source/coregen/.*\.py$' || true)
-          if [ -n "$CHANGED_FILES" ]; then
-            echo "Running mypy on changed files: $CHANGED_FILES"
-            mypy "$CHANGED_FILES" --config-file=mypy.ini
-          else
-            echo "No Python source files changed, skipping mypy"
-          fi
+          # Full tree with the project config: per-file lists give inconsistent
+          # cross-module results and previously pointed at a nonexistent mypy.ini
+          mypy source --config-file=pyproject.toml
+
+  dependency-audit:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+          pip install -e . -c constraints.txt
+          pip-audit --skip-editable
 
   # Component tests using tox
   common-tests:
@@ -149,7 +163,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Run common module tests
         run: |
           tox -e test-ci-unit
@@ -182,7 +196,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Run config model tests
         run: |
           tox -e test-ci-config
@@ -215,7 +229,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Run CLI tests
         run: |
           tox -e test-ci-cli
@@ -248,7 +262,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Run service tests
         run: |
           tox -e test-ci-services
@@ -281,7 +295,7 @@ jobs:
       - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install tox
+          pip install 'tox>=4,<5'
       - name: Run E2E tests
         run: |
           tox -e test-ci-e2e

@@ -501,11 +501,6 @@ class GenerateService(ServicesBase):
             "components": {},  # Will be rebuilt in sorted order
         }
 
-        # Store components with their sort order preserved
-        components_to_add: list[tuple[int, str, dict[str, Any]]] = (
-            []
-        )  # List of (sort_index, comp_key, component) tuples
-
         # First, find all components marked as 'required'
         required_added = 0
 
