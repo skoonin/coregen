@@ -38,13 +38,15 @@ class ComponentDependency(BaseModel):
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: str | None) -> str | None:
-        """Validate that path exists if provided."""
-        if v is not None:
-            from pathlib import Path
+        """Validate path syntax only.
 
-            path = Path(v)
-            if not path.exists():
-                raise ValueError(f"Path '{v}' does not exist")
+        Existence is intentionally NOT checked here: dependency paths are
+        relative to the context directory, which is resolved after model
+        construction, so a filesystem check at validation time runs against
+        the CWD and rejects valid configs.
+        """
+        if v is not None and not v.strip():
+            raise ValueError("path cannot be empty")
         return v
 
 

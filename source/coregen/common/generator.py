@@ -156,6 +156,15 @@ class Generator:
 
                     error_str = str(e)
 
+                    # Default message covers every JinjaTemplateError subtype; the
+                    # UndefinedError branch below refines it. Without this default,
+                    # non-Undefined errors (TemplateRuntimeError, filter failures)
+                    # raised UnboundLocalError at the console.error call.
+                    error = (
+                        f"{prefix}Template error in {template_path}: "
+                        f"[deep_pink1]{error_str}[/]"
+                    )
+
                     # Enhanced hyphen detection
                     is_hyphen_related = False
                     var_name = "unknown-variable"
@@ -268,7 +277,7 @@ class Generator:
                     logger.exception(error)
                     errors.append(error)
                     if not quiet:
-                        console.error(f"Error: {error}")
+                        console.error(f"{error}")
                     content = None
 
                 # Only write if rendering was successful
@@ -295,6 +304,6 @@ class Generator:
             logger.exception(error)
             errors.append(error)
             if not quiet:
-                console.error(f"Error: {error}")
+                console.error(f"{error}")
 
         return errors  # Return collected errors at the end

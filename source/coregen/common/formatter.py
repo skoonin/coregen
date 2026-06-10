@@ -1,10 +1,12 @@
 """Main Formatter class with output format subclasses."""
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from rich.text import Text
 
+from .formatters.base import BaseFormatter
 from .formatters.json import JSONFormatter
 from .formatters.matrix import MatrixFormatter
 from .formatters.table import TableFormatter
@@ -36,23 +38,26 @@ class Formatter:
         Returns:
             Formatted output according to the specified format
         """
-        format_map = {
-            "text": Formatter.Text(),
-            "json": Formatter.JSON(),
-            "yaml": Formatter.YAML(),
-            "matrix": Formatter.Matrix(),
-            "table": Formatter.Table(),
+        # Typed as factories: a dict[str, type[BaseFormatter]] inference makes
+        # mypy reject instantiation because BaseFormatter is abstract.
+        format_classes: dict[str, Callable[[], BaseFormatter]] = {
+            "text": Formatter.Text,
+            "json": Formatter.JSON,
+            "yaml": Formatter.YAML,
+            "matrix": Formatter.Matrix,
+            "table": Formatter.Table,
         }
 
         logger.debug(f"Formatting output as: {output_format}")
 
-        formatter = format_map.get(output_format.lower())
-        if formatter is None:
+        formatter_class = format_classes.get(output_format.lower())
+        if formatter_class is None:
             logger.warning(
                 f"Unknown output format '{output_format}', defaulting to text"
             )
             return Text(str(content))
 
+        formatter = formatter_class()
         try:
             return formatter.format(content)
         except Exception as e:

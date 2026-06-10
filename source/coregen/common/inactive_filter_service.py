@@ -187,38 +187,6 @@ class InactiveFilterService:
 
         return "unknown"
 
-    def get_inactive_counts(self, data: dict[str, Any]) -> dict[str, int]:
-        """Get counts of inactive items in the data.
-
-        Useful for logging and reporting.
-
-        Args:
-            data: Data dictionary to analyze
-
-        Returns:
-            Dictionary with counts of inactive items by entity type
-        """
-        counts = {"workspaces": 0, "contexts": 0, "components": 0}
-
-        # Count inactive items in each entity type
-        for entity_type, plural_key in [
-            ("workspace", "workspaces"),
-            ("context", "contexts"),
-            ("component", "components"),
-        ]:
-            if plural_key in data:
-                entities = data[plural_key]
-                if isinstance(entities, dict):
-                    for entity_data in entities.values():
-                        if self._has_active_false(entity_data):
-                            counts[plural_key] += 1
-                elif isinstance(entities, list):
-                    for entity in entities:
-                        if self._has_active_false(entity):
-                            counts[plural_key] += 1
-        self.logger.debug(f"Inactive counts: {counts}")
-        return counts
-
     def filter_complete_model(
         self, complete_model: dict[str, dict[str, Any]], include_inactive: bool = False
     ) -> dict[str, dict[str, Any]]:

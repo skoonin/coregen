@@ -302,11 +302,11 @@ class SchemaCommand(FormatValidationMixin):
 
         except FileNotFoundError as e:
             self.logger.error(f"Config file not found: {str(e)}")
-            self.console.error(f"Error: {str(e)}")
+            self.console.error(f"{str(e)}")
             raise typer.Exit(1)
         except Exception as e:
             self.logger.error(f"Error generating schema: {e}")
-            self.console.error(f"Error: Failed to generate schema. {str(e)}")
+            self.console.error(f"Failed to generate schema. {str(e)}")
             raise typer.Exit(1)
         finally:
             # Always reset output format

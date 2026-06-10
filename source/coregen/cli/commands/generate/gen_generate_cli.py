@@ -75,7 +75,9 @@ class GenerateCommand:
             ),
         ] = None,
         # Command-specific options
-        filter: Annotated[
+        # Named "filters" (not "filter") so the Typer auto-envvar derives
+        # CG_FILTERS, matching get/check-pattern/detect-changes.
+        filters: Annotated[
             list[str] | None,
             typer.Option(
                 "--filter",
@@ -219,7 +221,7 @@ class GenerateCommand:
 
         # Store command-specific options in context
         ctx.obj["paths"] = paths
-        ctx.obj["filter"] = filter
+        ctx.obj["filter"] = filters
         ctx.obj["include_inactive"] = include_inactive
         ctx.obj["type"] = type
         ctx.obj["skip_commit_dir"] = skip_commit_dir

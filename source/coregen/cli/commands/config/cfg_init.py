@@ -231,9 +231,9 @@ class InitCommand:
             raise e
         except FileNotFoundError as e:
             self.logger.error(f"Config file not found: {str(e)}")
-            self.console.error(f"Error: {str(e)}")
+            self.console.error(f"{str(e)}")
             raise typer.Exit(1)
         except Exception as e:
             self.logger.error(f"Failed to initialize config: {str(e)}")
-            self.console.error(f"Error: Failed to initialize config. {str(e)}")
+            self.console.error(f"Failed to initialize config. {str(e)}")
             raise typer.Exit(1)

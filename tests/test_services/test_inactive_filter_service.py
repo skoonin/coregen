@@ -196,51 +196,6 @@ class TestInactiveFilterService:
         assert "comp2" not in result["components"]
 
     # ========================================================================
-    # get_inactive_counts Tests
-    # ========================================================================
-
-    def test_get_inactive_counts_dict_format(
-        self, service: InactiveFilterService, sample_data_dict: dict[str, Any]
-    ):
-        """Test get_inactive_counts returns correct counts for dict format."""
-        result = service.get_inactive_counts(sample_data_dict)
-
-        assert result["workspaces"] == 1  # ws2 is inactive
-        assert result["contexts"] == 1  # ctx2 is inactive
-        assert result["components"] == 1  # comp2 is inactive
-
-    def test_get_inactive_counts_list_format(
-        self, service: InactiveFilterService, sample_data_list: dict[str, Any]
-    ):
-        """Test get_inactive_counts returns correct counts for list format."""
-        result = service.get_inactive_counts(sample_data_list)
-
-        assert result["workspaces"] == 1
-        assert result["contexts"] == 1
-        assert result["components"] == 1
-
-    def test_get_inactive_counts_empty_data(self, service: InactiveFilterService):
-        """Test get_inactive_counts handles empty data."""
-        result = service.get_inactive_counts({})
-
-        assert result["workspaces"] == 0
-        assert result["contexts"] == 0
-        assert result["components"] == 0
-
-    def test_get_inactive_counts_all_active(self, service: InactiveFilterService):
-        """Test get_inactive_counts with all active items."""
-        data = {
-            "workspaces": {"ws1": {"name": "ws1", "active": True}},
-            "contexts": {"ctx1": {"name": "ctx1", "active": True}},
-            "components": {"comp1": {"name": "comp1", "active": True}},
-        }
-        result = service.get_inactive_counts(data)
-
-        assert result["workspaces"] == 0
-        assert result["contexts"] == 0
-        assert result["components"] == 0
-
-    # ========================================================================
     # filter_complete_model Tests - Parent-Child Awareness
     # ========================================================================
 
