@@ -2,7 +2,6 @@
 
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 from .base import BaseFormatter
@@ -311,51 +310,6 @@ class MatrixFormatter(BaseFormatter):
                 return f"w/{ws_name}"
 
         return ""
-
-    def _convert_to_serializable(self, obj: Any) -> Any:
-        """
-        Convert Pydantic models and other complex objects to serializable dicts.
-
-        This method handles Pydantic models, Path objects, and other objects
-        with __dict__ attributes. It recursively converts them to a format suitable for
-        JSON serialization.
-
-        Args:
-            obj: The object to convert.
-        Returns:
-            A serializable version of the object, typically a dict or list.
-
-        Example:
-            >>> from pydantic import BaseModel
-            >>> class MyModel(BaseModel):
-            ...     name: str
-            ...     value: int
-            >>> model_instance = MyModel(name="test", value=123)
-            >>> formatter = MatrixFormatter()
-            >>> print(formatter._convert_to_serializable(model_instance))
-            {'name': 'test', 'value': 123}
-        """
-        if hasattr(obj, "model_dump"):
-            # Pydantic model - convert to dict and recursively process
-            model_dict = obj.model_dump(exclude_defaults=False)
-            return self._convert_to_serializable(model_dict)
-        elif isinstance(obj, Path):
-            # Convert Path objects to strings
-            return str(obj)
-        elif hasattr(obj, "__dict__"):
-            # Other objects with __dict__ - convert to dict
-            return {
-                k: self._convert_to_serializable(v) for k, v in obj.__dict__.items()
-            }
-        elif isinstance(obj, dict):
-            # Recursively convert dictionary values
-            return {k: self._convert_to_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple)):
-            # Recursively convert list/tuple items
-            return [self._convert_to_serializable(item) for item in obj]
-        else:
-            # Return as-is for basic types
-            return obj
 
     def format(self, content: Any) -> str:
         """Format content as GitHub Actions matrix format."""

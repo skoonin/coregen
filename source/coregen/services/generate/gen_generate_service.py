@@ -38,12 +38,10 @@ class GenerateService(ServicesBase):
         """
         super().__init__(**kwargs)
         # Store a reference to the config provider for easy access
-        self.provider = self.config_provider
         # Initialize filter services
         self.type_filter_service = TypeFilterService()
         self.inactive_filter_service = InactiveFilterService()
         # Track components per context for verbose mode summary
-        self._components_per_context: dict[str, int] = {}
         # Single debug log with essential service initialization info
         self.logger.debug(
             f"Initialized GenerateService with provider={hasattr(self, 'provider')}, "
@@ -82,12 +80,6 @@ class GenerateService(ServicesBase):
             return self._generate_files_impl(
                 paths, filters, include_inactive, type, skip_commit_dir, output_dir
             )
-        except TypeError as e:
-            import traceback
-
-            self.logger.error(f"TypeError in generate_files: {e}")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
         except Exception as e:
             import traceback
 
@@ -247,9 +239,6 @@ class GenerateService(ServicesBase):
                     )
                     # Dict maintains insertion order in Python 3.7+
                     context_components[component_name] = component
-
-            # Track for verbose mode
-            self._components_per_context[context_name] = len(context_components)
 
             # Show context header in verbose mode
             if self.verbose and context_components:
@@ -652,8 +641,6 @@ class GenerateService(ServicesBase):
             self.console.error(error_msg)
             results["errors"].append(error_msg)
             return results
-
-        self.config_access._workspace_lookup[workspace_name]
 
         # Get the component path from the resolved paths - this MUST exist from config processing
         if not hasattr(component, "resolved_paths") or not component.resolved_paths.get(

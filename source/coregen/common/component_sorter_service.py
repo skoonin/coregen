@@ -359,11 +359,6 @@ class ComponentSorterService:
 
     def _get_dependencies(self, obj: Any) -> list[str]:
         """Get dependencies from dict or object."""
-        # Check for legacy accessor function
-        if hasattr(self, "_legacy_get_dependencies") and self._legacy_get_dependencies:
-            deps = self._legacy_get_dependencies(obj)
-            return deps if deps else []
-
         if isinstance(obj, dict):
             config = obj.get("config", {}) or {}
             deps = config.get("dependencies", []) or []
@@ -398,52 +393,4 @@ class ComponentSorterService:
                 result.append(dep)
             elif hasattr(dep, "name"):
                 result.append(str(getattr(dep, "name")))  # Use getattr for type safety
-        return result
-
-    # ========== Legacy Compatibility Methods ==========
-    # These methods are maintained for backward compatibility
-
-    def sort_component_dicts(
-        self,
-        components: Sequence[dict[str, Any]],
-        **_kwargs: Any,  # Accepted for backward compatibility
-    ) -> list[dict[str, Any]]:
-        """Legacy method for sorting component dictionaries.
-
-        This method is maintained for backward compatibility.
-        New code should use sort_entities() instead.
-        """
-        return self.sort_entities(components, "component")
-
-    def sort_changes(
-        self,
-        changes: Sequence[Any],
-        **_kwargs: Any,  # Accepted for backward compatibility
-    ) -> list[Any]:
-        """Legacy method for sorting change objects.
-
-        This method is maintained for backward compatibility.
-        New code should use sort_entities() instead.
-        """
-        return self.sort_entities(changes, "component")
-
-    def sort_table_rows(
-        self,
-        rows: Sequence[dict[str, Any]],
-        **kwargs: Any,
-    ) -> list[dict[str, Any]]:
-        """Legacy method for sorting table rows.
-
-        This method is maintained for backward compatibility.
-        New code should use sort_entities() instead.
-        """
-        # Store legacy accessor if provided
-        self._legacy_get_dependencies = kwargs.get("deps_accessor")
-
-        # Use the new unified method
-        result = self.sort_entities(rows, "component")
-
-        # Clear legacy accessor
-        self._legacy_get_dependencies = None
-
         return result

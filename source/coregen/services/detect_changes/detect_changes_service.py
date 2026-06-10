@@ -127,7 +127,6 @@ class DetectChangesService(ServicesBase):
 
         # Initialize git repository once (lazy loading)
         self._repo: Repo | None = None
-        self._repo_root: Path | None = None
 
     def detect_changes(
         self,
@@ -1644,25 +1643,11 @@ class DetectChangesService(ServicesBase):
         if self._repo is None:
             try:
                 self._repo = Repo(search_parent_directories=True)
-                self._repo_root = Path(self._repo.working_dir)
             except InvalidGitRepositoryError:
                 return None
             except GitError:
                 return None
         return self._repo
-
-    def _get_git_repo_root(self) -> Path | None:
-        """Get the git repository root directory.
-
-        This method uses the cached repository instance.
-
-        Returns:
-            Path to repository root, or None if not in a git repository
-        """
-        repo = self._get_repo()
-        if repo:
-            return Path(repo.working_dir)
-        return None
 
     def _is_safe_git_ref(self, ref: str) -> bool:
         """Validate that a git ref is safe from injection attacks.

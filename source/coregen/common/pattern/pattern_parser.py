@@ -4,11 +4,6 @@ This module provides functionality for parsing raw pattern strings into structur
 pattern specifications that can be efficiently processed for matching.
 """
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
 from .pattern_spec import (
     LogicalPatternSpec,
     LogicalPrefixType,
