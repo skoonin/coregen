@@ -22,6 +22,10 @@ from coregen.config_model.models.context import Context
 from coregen.config_model.models.settings import get_settings
 from coregen.config_model.models.workspace import WorkspaceConfig
 from coregen.config_model.processor import ConfigProcessor
+from coregen.config_model.validation_error_grouper import (
+    VALIDATION_ERROR_HEADER,
+    group_validation_errors,
+)
 
 
 class EffectiveOptions(TypedDict):
@@ -261,84 +265,11 @@ class ConfigurationProvider:
         # Initialize config access
         self._config_access = ConfigAccess(self._config, self._path_service)
 
-        # Process validation errors by grouping and deduplicating them
+        # Group and deduplicate validation errors, then log the result
         if self.validation_errors:
-            # Group errors by context, component and error type
-            grouped_errors: dict[str, str | dict[str, Any]] = {}
-
+            self.validation_errors = group_validation_errors(self.validation_errors)
             for error in self.validation_errors:
-                # Extract context and component info for grouping
-                context_name = "unknown context"
-                component_name = "unknown component"
-
-                # Extract context name using regex or simple string parsing
-                if "in context " in error:
-                    parts = error.split("in context ", 1)
-                    if len(parts) > 1:
-                        context_part = parts[1].split(":", 1)[0].strip()
-                        context_name = context_part
-
-                # Extract component name if present
-                if "component " in error:
-                    parts = error.split("component ", 1)
-                    if len(parts) > 1:
-                        component_part = parts[1].split(":", 1)[0].strip()
-                        component_name = component_part
-
-                # Extract error type for more precise grouping
-                error_type = "other"
-                if "template" in error or "templated" in error:
-                    error_type = "invalid_field_template"
-                elif "Priority must be" in error:
-                    error_type = "invalid_priority"
-                elif "component_type" in error:
-                    error_type = "invalid_component_type"
-                elif "Extra inputs are not permitted" in error:
-                    error_type = "extra_fields"
-                elif "is not valid" in error:
-                    error_type = "invalid_value"
-                elif "is required" in error:
-                    error_type = "missing_required_field"
-                elif "Schema validation error" in error:
-                    error_type = "schema_validation"
-
-                # Create a composite key for more precise grouping of similar errors
-                key = f"{context_name}:{component_name}:{error_type}"
-
-                # Store first occurrence of each unique error type
-                if key not in grouped_errors:
-                    grouped_errors[key] = error
-                # Optionally count occurrences for summary
-                else:
-                    if isinstance(grouped_errors[key], dict):
-                        grouped_errors[key]["count"] += 1  # type: ignore[index, operator]
-                    else:
-                        # Convert to dictionary on second occurrence
-                        first_error = grouped_errors[key]
-                        grouped_errors[key] = {"error": first_error, "count": 2}
-
-            # Replace with unique grouped errors, optionally with counts for repeated errors
-            unique_errors = []
-            for key, error_data in grouped_errors.items():
-                if isinstance(error_data, dict):  # type: ignore[unreachable]
-                    unique_errors.append(  # type: ignore[unreachable]
-                        f"{error_data['error']} (repeated {error_data['count']} times)"
-                    )
-                else:
-                    unique_errors.append(error_data)
-
-            self.validation_errors = unique_errors
-
-            # Add some helpful context to the errors list
-            if self.validation_errors:
-                self.validation_errors.insert(
-                    0,
-                    "Configuration contains validation errors. See below for details and how to fix them.",
-                )
-
-            # Log the unique errors
-            for error in self.validation_errors:
-                if "Configuration contains validation errors" not in error:
+                if VALIDATION_ERROR_HEADER not in error:
                     self._logger.error(f"Validation error: {error}")
 
         return self._config

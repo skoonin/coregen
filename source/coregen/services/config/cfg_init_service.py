@@ -8,7 +8,7 @@ and creating initial configuration files.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.services_base import ServicesBase
 
 
 @dataclass
@@ -24,7 +24,7 @@ class InitResult:
     messages: list[str] = field(default_factory=list)
 
 
-class ConfigInitService(ConfigServiceBase):
+class ConfigInitService(ServicesBase):
     """Service for initializing configuration repositories.
 
     This service handles:

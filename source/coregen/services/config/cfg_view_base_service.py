@@ -10,10 +10,10 @@ from typing import Any
 
 from coregen.config_model.loader import ConfigLoader
 from coregen.config_model.models.settings import get_settings
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.services_base import ServicesBase
 
 
-class ConfigViewBaseService(ConfigServiceBase):
+class ConfigViewBaseService(ServicesBase):
     """Base service for viewing configuration data.
 
     This class provides common functionality for all view-related services.

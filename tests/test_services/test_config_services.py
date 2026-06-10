@@ -16,34 +16,46 @@ from coregen.config_model.models.config import (  # Import CoregenConfig for res
 )
 from coregen.config_model.processor import ConfigProcessor  # Import ConfigProcessor
 from coregen.config_model.provider import ConfigurationProvider
-from coregen.services.config.cfg_base_service import ConfigServiceBase
 from coregen.services.config.cfg_init_service import ConfigInitService
 from coregen.services.config.cfg_schema_service import ConfigSchemaService
 from coregen.services.config.cfg_view_service import ConfigViewService
 
 
-class TestConfigServiceBase:
-    """Test the ConfigServiceBase class."""
+class TestConfigServiceBaseInit:
+    """Test the shared init behavior the config services inherit from ServicesBase.
+
+    Config services now derive from ServicesBase (which provides config-provider
+    access) rather than a separate ConfigServiceBase. ConfigInitService stands in
+    as a concrete subclass.
+    """
 
     def test_init_with_defaults(self, mock_config_provider, mock_path_service):
-        """Test initializing with default values."""
-        # Patch the ConfigurationProvider constructor to return our mock
+        """Test that omitted (None) options fall back to settings defaults."""
+        # Passing None routes each option through ServiceBase to the settings
+        # default, preserving the option-precedence the old base encoded.
         with patch(
             "coregen.config_model.provider.ConfigurationProvider",
             return_value=mock_config_provider,
         ):
-            service = ConfigServiceBase()
+            service = ConfigInitService(
+                dry_run=None,
+                file_action=None,
+                quiet=None,
+                verbose=None,
+                no_color=None,
+                config_file=None,
+            )
 
-        # Verify default instances were created
-        assert isinstance(service._console, Console)
+        # ServiceBase stores the Console class reference (not an instance) so
+        # color/flag state stays class-level and consistent across services.
+        assert service._console is Console
         assert isinstance(service._file_manager, FileManager)
         assert isinstance(service._workspace_initializer, WorkspaceInitializer)
         assert isinstance(service._config_provider, ConfigurationProvider)
 
-        # Verify default values
+        # Settings defaults (see config_model/models/defaults.py)
         assert service.dry_run is False
         assert service.file_action == FileAction.OVERWRITE
-        # output_format removed from services
         assert service.quiet is False
         assert service.verbose is False
         assert service.no_color is False
@@ -57,14 +69,13 @@ class TestConfigServiceBase:
         mock_config_provider = MagicMock(spec=ConfigurationProvider)
 
         # Create service with custom values
-        service = ConfigServiceBase(
+        service = ConfigInitService(
             console=mock_console,
             file_manager=mock_file_manager,
             workspace_initializer=mock_workspace_initializer,
             config_provider=mock_config_provider,
             dry_run=True,
             file_action=FileAction.OVERWRITE,
-            # output_format removed,
             quiet=True,
             verbose=True,
             no_color=True,
@@ -79,12 +90,11 @@ class TestConfigServiceBase:
         # Verify custom values
         assert service.dry_run is True
         assert service.file_action == FileAction.OVERWRITE
-        # output_format removed from services
         assert service.quiet is True
         assert service.verbose is True
         assert service.no_color is True
 
-    @patch("coregen.services.config.cfg_base_service.Logger")
+    @patch("coregen.services.service_base.Logger")
     def test_logger_creation(
         self, mock_logger_class, mock_config_provider, mock_path_service
     ):
@@ -99,10 +109,10 @@ class TestConfigServiceBase:
             return_value=mock_config_provider,
         ):
             # Create service - this should trigger Logger instantiation
-            service = ConfigServiceBase()
+            service = ConfigInitService()
 
-        # Verify Logger was instantiated with the correct class name
-        mock_logger_class.assert_called_once_with("ConfigServiceBase")
+        # Verify Logger was instantiated with the concrete class name
+        mock_logger_class.assert_called_once_with("ConfigInitService")
 
         # Verify the service's logger attribute is the mocked instance
         assert service.logger is mock_logger_instance

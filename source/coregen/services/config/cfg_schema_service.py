@@ -7,7 +7,7 @@ from coregen.config_model.models.components import Component
 from coregen.config_model.models.context import Context
 from coregen.config_model.models.settings import CoregenSettings, get_settings
 from coregen.config_model.models.workspace import WorkspaceConfig
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.services_base import ServicesBase
 
 # Get settings instance at module level for default values
 settings = get_settings()
@@ -27,7 +27,7 @@ SCHEMA_TYPES = [
 ]
 
 
-class ConfigSchemaService(ConfigServiceBase):
+class ConfigSchemaService(ServicesBase):
     """Service for handling schema operations."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

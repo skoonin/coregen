@@ -10,7 +10,7 @@ from typing import Any
 
 from coregen.cli.enums.enum_file_action import FileAction
 from coregen.config_model.models.settings import get_settings
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.services_base import ServicesBase
 
 
 @dataclass
@@ -24,7 +24,7 @@ class GenerateConfigResult:
     messages: list[str] = field(default_factory=list)
 
 
-class ConfigGenerateService(ConfigServiceBase):
+class ConfigGenerateService(ServicesBase):
     """Service for generating configuration files.
 
     This service handles:
@@ -128,7 +128,7 @@ class ConfigGenerateService(ConfigServiceBase):
         # Ensure parent directory exists
         config_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # The file_manager was initialized with the file_action in ConfigServiceBase
+        # The file_manager was initialized with the file_action by the base service
         self.file_manager.create_file(config_file_path, yaml_content)
 
         return f"Configuration file created at {config_file_path}"
