@@ -349,10 +349,11 @@ def test_generate_output_dir_default_none(cli_runner, cli_app):
 
 def test_generate_missing_path_argument(cli_runner, cli_app):
     """Test error handling when path argument is missing."""
-    with patch("coregen.cli.commands.generate.gen_generate_cli.console.error") as _:
-        # Use catch_exceptions to prevent test from failing due to SystemExit
-        cli_runner.invoke(cli_app, ["generate"], catch_exceptions=True)
+    with patch(
+        "coregen.cli.commands.generate.gen_generate_cli.console.error"
+    ) as mock_error:
+        result = cli_runner.invoke(cli_app, ["generate"], catch_exceptions=True)
 
-        # Simply verify the command can be invoked without crashing the test
-        # Skip checking exit code as it might vary between test environments
-        assert True
+        # Missing PATHS reports an error and does not crash with a traceback
+        mock_error.assert_called()
+        assert result.exception is None or isinstance(result.exception, SystemExit)

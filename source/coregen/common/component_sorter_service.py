@@ -359,11 +359,6 @@ class ComponentSorterService:
 
     def _get_dependencies(self, obj: Any) -> list[str]:
         """Get dependencies from dict or object."""
-        # Check for legacy accessor function
-        if hasattr(self, "_legacy_get_dependencies") and self._legacy_get_dependencies:
-            deps = self._legacy_get_dependencies(obj)
-            return deps if deps else []
-
         if isinstance(obj, dict):
             config = obj.get("config", {}) or {}
             deps = config.get("dependencies", []) or []

@@ -152,10 +152,8 @@ pythonpath = ["source"]
 markers = [
     "performance: marks tests that check performance (deselect with '-m \"not performance\"')",
     "integration: marks integration tests",
-    "unit: marks unit tests",
     "e2e: marks end-to-end tests (deselect with '-m \"not e2e\"')",
     "platform_macos: marks tests that only run on macOS",
-    "platform_linux: marks tests that only run on Linux",
     "platform_agnostic: marks tests that should run on all platforms",
 ]
 

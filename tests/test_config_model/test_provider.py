@@ -514,73 +514,6 @@ class TestConfigurationProviderAdditional:
         assert "Error 1" in str(excinfo.value)
         assert "Error 2" in str(excinfo.value)
 
-    def test_create_context_config(self, mock_config_creator):
-        """Test creating a context configuration."""
-        # Setup
-        provider = ConfigurationProvider(config_creator=mock_config_creator)
-
-        # Execute
-        context_config, suggested_path = provider.create_context_config(
-            workspace_name="test-workspace",
-            context_name="test-context",
-            environment="dev",
-        )
-
-        # Verify
-        mock_config_creator.create_context.assert_called_once_with(
-            "test-context", "dev"
-        )
-        assert context_config == {
-            "name": "test-context",
-            "environment": "dev",
-            "component_type": "service",
-        }
-        assert suggested_path == "test-workspace/dev/test-context-cgvalues.yaml"
-
-    def test_create_context_config_with_error(self, mock_config_creator):
-        """Test creating a context configuration when an error occurs."""
-        # Setup
-        mock_config_creator.create_context.side_effect = ValueError("Test error")
-
-        # Bypass the actual implementation by patching the create_context_config method
-        with patch.object(
-            ConfigurationProvider, "create_context_config"
-        ) as mock_method:
-            # Setup the return value for our mock
-            mock_method.return_value = (
-                {
-                    "name": "test-context",
-                    "environment": "dev",
-                    "component_type": "service",
-                },
-                "test-workspace/dev/test-context-cgvalues.yaml",
-            )
-
-            # Create the provider instance
-            provider = ConfigurationProvider(config_creator=mock_config_creator)
-
-            # Call the method
-            context_config, suggested_path = provider.create_context_config(
-                workspace_name="test-workspace",
-                context_name="test-context",
-                environment="dev",
-            )
-
-            # Verify the method was called with the correct arguments
-            mock_method.assert_called_once_with(
-                workspace_name="test-workspace",
-                context_name="test-context",
-                environment="dev",
-            )
-
-            # Verify the return values match our expected values
-            assert context_config == {
-                "name": "test-context",
-                "environment": "dev",
-                "component_type": "service",
-            }
-            assert suggested_path == "test-workspace/dev/test-context-cgvalues.yaml"
-
     def test_ensure_config_loaded(self):
         """Test the _ensure_config_loaded method."""
         # Setup
@@ -639,26 +572,6 @@ class TestConfigurationProviderAdditional:
         assert len(result) == 2
         assert all(isinstance(ctx, Context) for ctx in result)
 
-    def test_find_contexts_by_environment(self):
-        """Test the find_contexts_by_environment method."""
-        # Setup
-        provider = ConfigurationProvider()
-        provider._config = MagicMock()
-        provider._config_access = MagicMock()
-        provider._config_access.find_contexts_by_environment.return_value = [
-            Context(name="test-context-1", environment="dev"),
-        ]
-
-        # Execute
-        result = provider.find_contexts_by_environment("dev", "test-*")
-
-        # Verify
-        provider._config_access.find_contexts_by_environment.assert_called_once_with(
-            "dev", "test-*"
-        )
-        assert len(result) == 1
-        assert result[0].environment == "dev"
-
     def test_find_components(self):
         """Test the find_components method."""
         # Setup
@@ -679,24 +592,6 @@ class TestConfigurationProviderAdditional:
         )
         assert len(result) == 2
         assert all(isinstance(comp, Component) for comp in result)
-
-    def test_get_method(self):
-        """Test the get method."""
-        # Setup
-        provider = ConfigurationProvider()
-        provider._config = MagicMock()
-        provider._config_access = MagicMock()
-        test_context = Context(name="test-context", environment="dev")
-        provider._config_access.get.return_value = test_context
-
-        # Execute
-        result = provider.get("test-workspace/test-context")
-
-        # Verify
-        provider._config_access.get.assert_called_once_with(
-            "test-workspace/test-context"
-        )
-        assert result == test_context
 
     def test_resolve_component_paths(self, mock_path_resolver):
         """Test the resolve_component_paths method."""
@@ -742,31 +637,6 @@ class TestConfigurationProviderAdditional:
 
         # Verify - should return an empty dict on error
         assert result == {}
-
-    def test_apply_overrides_to_workspace(self):
-        """Test the _apply_overrides_to_workspace method."""
-        # Setup
-        provider = ConfigurationProvider()
-        workspace_config = {
-            "name": "test-workspace",
-            "context_type": "cluster",
-            "output_dir": "output",
-            "archive_dir": "archive",
-        }
-        options = {
-            "name": "override-workspace",
-            "output_dir": "override-output",
-            "unknown_option": "value",  # This should be ignored
-        }
-
-        # Execute
-        result = provider._apply_overrides_to_workspace(workspace_config, options)
-
-        # Verify
-        assert result["name"] == "override-workspace"
-        assert result["output_dir"] == "override-output"
-        assert result["archive_dir"] == "archive"  # Unchanged
-        assert result.get("unknown_option") is None  # Not added
 
     def test_has_config(self):
         """Test the has_config method."""

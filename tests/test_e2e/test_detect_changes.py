@@ -128,9 +128,13 @@ data:
     # we should either see components detected or at least a meaningful output
     output = result["stdout"]
     # The service should either detect changes or report "No changes detected"
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
 
 
 @pytest.mark.e2e
@@ -165,9 +169,13 @@ def test_detect_changes_with_base_reference(
     # Should detect changes or report no changes
     output = result["stdout"]
     # For a realistic test, we should expect some meaningful output
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
 
 
 @pytest.mark.e2e
@@ -188,9 +196,13 @@ def test_detect_deleted_files(
     assert result["success"]
     # Should detect changes or report no changes
     output = result["stdout"]
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
 
 
 @pytest.mark.e2e
@@ -250,6 +262,10 @@ variable "namespace" {
     assert result["success"]
     # Should detect changes or report no changes
     output = result["stdout"]
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
