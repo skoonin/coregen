@@ -102,10 +102,10 @@ class ServicesBase(ServiceBase):
         self._path_service = self._config_provider.path_service
 
         # Initialize config access
-        self._config_access = None
+        self._config_access: ConfigAccess | None = None
 
         # Initialize filter service (will be created when needed)
-        self._filter_service = None
+        self._filter_service: FilterService | None = None
 
         # Update workspace initializer with path service if needed
         if workspace_initializer is None and self._workspace_initializer:
@@ -195,7 +195,7 @@ class ServicesBase(ServiceBase):
         assert self._filter_service is not None  # Always set in the if block above
         return self._filter_service
 
-    def _auto_append_recursive_pattern(self, patterns: list[str]) -> list[str]:
+    def _auto_append_recursive_pattern(self, patterns: Any) -> list[str]:
         """Auto-append /* to bare logical type patterns only.
 
         Only applies to the bare logical type names to avoid breaking any existing patterns:
@@ -209,8 +209,11 @@ class ServicesBase(ServiceBase):
         - Any pattern with path components (e.g., 'workspace/aws', 'context/dev')
         - Filesystem patterns (not starting with workspace/, context/, component/)
 
+        Accepts loosely-typed input (None, a bare string, or a list with
+        non-string elements) and normalizes it defensively.
+
         Args:
-            patterns: List of original patterns
+            patterns: Original patterns (list, single string, or None)
 
         Returns:
             List of patterns with /* appended where appropriate

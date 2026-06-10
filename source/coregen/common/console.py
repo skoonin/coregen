@@ -35,8 +35,8 @@ class Console:
         info, warning, error, debug, success
     """
 
-    _user_console = None
-    _log_console = None
+    _user_console: rich_console.Console | None = None
+    _log_console: rich_console.Console | None = None
     verbose_mode = False
     quiet_mode = False
     _no_color = False

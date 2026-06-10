@@ -91,7 +91,7 @@ class WorkspaceConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_extra_fields(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def validate_extra_fields(cls, data: Any) -> Any:
         """Validate that extra fields have allowed types.
 
         Args:
@@ -103,7 +103,7 @@ class WorkspaceConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        # Define fields that are part of the model  # type: ignore[unreachable]
+        # Define fields that are part of the model
         model_fields = {
             "name",
             "workspace_dir",

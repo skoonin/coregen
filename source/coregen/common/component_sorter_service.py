@@ -98,8 +98,6 @@ class ComponentSorterService:
             # Simple sort by context, workspace, priority, name
             return sorted(items, key=self._component_sort_key)
 
-        return items
-
     def _validate_components_grouped(self, components: list[Any]) -> None:
         """Validate components grouped by context.
 
