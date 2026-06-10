@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from click.core import ParameterSource
 
 from coregen.cli.commands.generate.gen_generate_formatter import GenerateFormatter
 from coregen.cli.enums.enum_entity_type import EntityType
@@ -245,11 +244,12 @@ class GenerateCommand:
         # the flag" from "auto_envvar filled it in"; with interspersed parsing the
         # main callback may own the explicit flag, so an env-sourced subcommand
         # value must not clobber it (CG_FILE_ACTION vs --file-action=skip).
+        # Compared by enum name: Typer 0.26+ vendors click, so the ParameterSource
+        # class is not importable from a stable public location.
         file_action_source = ctx.get_parameter_source("file_action")
         if (
-            file_action_source == ParameterSource.COMMANDLINE
-            or "file_action" not in parent_obj
-        ):
+            file_action_source is not None and file_action_source.name == "COMMANDLINE"
+        ) or "file_action" not in parent_obj:
             ctx.obj["file_action"] = file_action
 
         # For config_file, only override if explicitly provided (different from default)
