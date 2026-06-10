@@ -68,7 +68,7 @@ class FormatTypeService:
 
         # Apply entity resolution filtering if provided
         if entity_resolution and hasattr(entity_resolution, "included_entities"):
-            filtered_result = {}
+            filtered_result: dict[str, Any] = {}
             # Process entity types in consistent order
             entity_order = ["workspaces", "contexts", "components"]
 

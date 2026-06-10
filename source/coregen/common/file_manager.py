@@ -98,11 +98,9 @@ class FileManager:
             self._archive(path)
             return True
         elif self.file_action == FileAction.DELETE:
-            if self.file_action != FileAction.OVERWRITE:
-                logger.debug(f"Deleting: {path}")
+            logger.debug(f"Deleting: {path}")
             self._delete(path)
             return True
-        return True
 
     def _prompt_action(self, path: Path) -> bool:
         if self.dry_run:

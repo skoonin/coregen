@@ -211,7 +211,7 @@ class GetService(ServicesBase):
         )
 
         # Apply entity type filtering if specified
-        type_value = type.value if hasattr(type, "value") else type
+        type_value = getattr(type, "value", type)
         if type_value:
             matched_elements = self.type_filter_service.filter_exclusive(
                 matched_elements, type_value
@@ -330,7 +330,7 @@ class GetService(ServicesBase):
                 if hasattr(format_type, "value")
                 else str(format_type).lower() if format_type else "nested"
             )
-            type_value = type.value if hasattr(type, "value") else type
+            type_value = getattr(type, "value", type)
 
             entity_resolution = self.entity_resolution_service.resolve(
                 patterns if patterns is not None else [], type_value, format_str

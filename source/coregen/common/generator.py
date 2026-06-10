@@ -1,5 +1,6 @@
 # static_classes/generator.py
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,7 @@ class Generator:
                     output_extension = output_path.suffix.lstrip(".").lower()
 
                     # Determine autoescape strategy based on output file type
+                    autoescape_config: Callable[[str | None], bool] | bool
                     if output_extension in ("html", "htm", "xml", "xhtml", "svg"):
                         # For web content, enable strict autoescape
                         autoescape_config = jinja2.select_autoescape(

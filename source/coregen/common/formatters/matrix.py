@@ -2,9 +2,12 @@
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .base import BaseFormatter
+
+if TYPE_CHECKING:
+    from coregen.common.format_type_service import FormatTypeService
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class MatrixFormatter(BaseFormatter):
     def __init__(self) -> None:
         """Initialize the matrix formatter."""
         super().__init__()
-        self._format_type_service = None
+        self._format_type_service: "FormatTypeService | None" = None
 
     @property
     def format_type_service(self) -> Any:

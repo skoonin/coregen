@@ -91,9 +91,10 @@ class ConfigAccess:
 
                 # Add to environment lookup
                 env = context.environment
-                if env not in self._environment_lookup:
-                    self._environment_lookup[env] = []
-                self._environment_lookup[env].append(context)
+                if env is not None:
+                    if env not in self._environment_lookup:
+                        self._environment_lookup[env] = []
+                    self._environment_lookup[env].append(context)
 
                 # Initialize component lookup for this context
                 self._component_lookup[workspace.name][context_name] = {}

@@ -242,7 +242,7 @@ class Component(BaseModel):
             self.name,
         )
 
-    def __lt__(self, other: Component) -> bool:
+    def __lt__(self, other: object) -> bool:
         """Compare components for natural ordering.
 
         Args:
@@ -253,7 +253,7 @@ class Component(BaseModel):
         """
         if not isinstance(other, Component):
             return NotImplemented
-        return self.sort_key() < other.sort_key()  # type: ignore[unreachable]
+        return self.sort_key() < other.sort_key()
 
     def __eq__(self, other: object) -> bool:
         """Check equality based on component name.

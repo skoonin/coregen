@@ -202,7 +202,7 @@ class NameFilterService:
         # If no specific type identified, find the one with most items
         if not entity_type or entity_type == "all":
             max_count = 0
-            selected = data  # Default to returning the full dict
+            selected: Any = data  # Default to returning the full dict
 
             for entity_key in ["workspaces", "contexts", "components"]:
                 if entity_key in data and len(data[entity_key]) > max_count:

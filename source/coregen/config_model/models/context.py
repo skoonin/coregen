@@ -290,14 +290,7 @@ class Context(BaseModel):
 
             # Validate each dependency
             for dep in dependencies:
-                # Handle both dict and ComponentDependency objects
-                if hasattr(dep, "name"):
-                    dep_name = dep.name
-                elif isinstance(dep, dict):  # type: ignore[unreachable]
-                    dep_name = dep.get("name")
-                else:
-                    continue
-
+                dep_name = dep.name
                 if not dep_name:
                     continue
 

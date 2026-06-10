@@ -40,9 +40,6 @@ def order_components(
         priority, name, and dependencies directly off the live Component
         objects, so no serialization occurs.
     """
-    if not isinstance(components, dict):
-        return {}
-
     component_objects: list[Component] = []
     for component_type_dict in components.values():
         if isinstance(component_type_dict, dict):
@@ -68,6 +65,6 @@ def order_components(
     )
 
     result: dict[str, Component] = {}
-    for component in sorted_components:
-        result[component.name] = component
+    for sorted_component in sorted_components:
+        result[sorted_component.name] = sorted_component
     return result

@@ -118,6 +118,8 @@ class Matcher(ABC):
 class WorkspaceMatcher(Matcher):
     """Matcher for workspace logical patterns."""
 
+    spec: LogicalPatternSpec
+
     def __init__(self, spec: LogicalPatternSpec, config_access: ConfigAccess):
         """Initialize the matcher.
 
@@ -211,6 +213,8 @@ class WorkspaceMatcher(Matcher):
 class ContextMatcher(Matcher):
     """Matcher for context logical patterns."""
 
+    spec: LogicalPatternSpec
+
     def __init__(self, spec: LogicalPatternSpec, config_access: ConfigAccess):
         """Initialize the matcher.
 
@@ -277,6 +281,8 @@ class ContextMatcher(Matcher):
 
 class ComponentMatcher(Matcher):
     """Matcher for component logical patterns."""
+
+    spec: LogicalPatternSpec
 
     def __init__(self, spec: LogicalPatternSpec, config_access: ConfigAccess):
         """Initialize the matcher.

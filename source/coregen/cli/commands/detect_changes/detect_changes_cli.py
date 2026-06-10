@@ -431,15 +431,8 @@ class DetectChanges(FormatValidationMixin):
                 hasattr(change, "component_dependencies")
                 and change.component_dependencies
             ):
-                # Extract names from dependency objects
-                dep_names = []
-                for dep in change.component_dependencies:
-                    if hasattr(dep, "name"):
-                        dep_names.append(dep.name)
-                    elif isinstance(dep, dict) and "name" in dep:
-                        dep_names.append(dep["name"])
-                    elif isinstance(dep, str):
-                        dep_names.append(dep)
+                # component_dependencies is a list of dependency names
+                dep_names = list(change.component_dependencies)
                 if dep_names:
                     deps = ", ".join(dep_names)
 
@@ -512,34 +505,26 @@ class DetectChanges(FormatValidationMixin):
 
             # Handle text output with custom formatter (domain-specific)
             if output_format == DetectChangesOutputFormat.TEXT:
-                if isinstance(result, DetectChangesResult):
-                    formatter = DetectChangesFormatter()
-                    output = formatter.format_text(
-                        result,
-                        name_only=(
-                            bool(self.options.get("name_only", False))
-                            if self.options
-                            else False
-                        ),
-                        changed_only=(
-                            bool(self.options.get("changed_only", False))
-                            if self.options
-                            else False
-                        ),
-                        deleted_only=(
-                            bool(self.options.get("deleted_only", False))
-                            if self.options
-                            else False
-                        ),
-                    )
-                    console.print(output)
-                else:
-                    # Legacy/compat: if service returned plain data, print it directly
-                    # Convert lists to newline-joined text for readability
-                    if isinstance(result, list):
-                        console.print("\n".join(str(i) for i in result))
-                    else:
-                        console.print(str(result))
+                formatter = DetectChangesFormatter()
+                output = formatter.format_text(
+                    result,
+                    name_only=(
+                        bool(self.options.get("name_only", False))
+                        if self.options
+                        else False
+                    ),
+                    changed_only=(
+                        bool(self.options.get("changed_only", False))
+                        if self.options
+                        else False
+                    ),
+                    deleted_only=(
+                        bool(self.options.get("deleted_only", False))
+                        if self.options
+                        else False
+                    ),
+                )
+                console.print(output)
             else:
                 # For structured formats (JSON, YAML, MATRIX, TABLE), use Console pipeline
                 from coregen.cli.enums.enum_output_format import OutputFormat

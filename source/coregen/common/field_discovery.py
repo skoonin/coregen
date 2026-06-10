@@ -227,7 +227,7 @@ class FieldDiscovery:
         custom_fields = {}
 
         for entity in entities:
-            if not hasattr(entity, "model_extra"):
+            if not hasattr(entity, "model_extra") or entity.model_extra is None:
                 continue
 
             for field_name, field_value in entity.model_extra.items():
