@@ -229,12 +229,10 @@ def gen_test_env(temp_test_dir: Path, env_setup: dict[str, Any]) -> dict[str, An
     dependencies_file = prometheus_dir / "dependencies.yml"
     if not dependencies_file.exists():
         with open(dependencies_file, "w") as f:
-            f.write(
-                """
+            f.write("""
 dependencies:
   - metrics-server
-"""
-            )
+""")
 
     # Create contexts directory
     contexts_dir = gen_test_dir / "contexts"

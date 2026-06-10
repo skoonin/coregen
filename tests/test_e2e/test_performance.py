@@ -54,8 +54,7 @@ def perf_test_env(temp_test_dir: Path) -> dict[str, Any]:
     service_dir = templates_dir / "service"
     service_dir.mkdir(exist_ok=True)
 
-    (service_dir / "deployment.yaml.j2").write_text(
-        """
+    (service_dir / "deployment.yaml.j2").write_text("""
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -76,11 +75,9 @@ spec:
         image: {{ image_repo }}/{{ component_name }}:{{ image_tag | default('latest') }}
         ports:
         - containerPort: {{ port | default(8080) }}
-    """
-    )
+    """)
 
-    (service_dir / "service.yaml.j2").write_text(
-        """
+    (service_dir / "service.yaml.j2").write_text("""
 apiVersion: v1
 kind: Service
 metadata:
@@ -93,8 +90,7 @@ spec:
   - port: {{ port | default(8080) }}
     targetPort: {{ port | default(8080) }}
   type: {{ service_type | default('ClusterIP') }}
-    """
-    )
+    """)
 
     # Create a simple config file for performance testing
     config_content = """
@@ -164,8 +160,7 @@ workspaces:
 
             # Create component values file - this needs to have component: as root key
             values_file = comp_dir / f"{component_name}.cgvalues.yaml"
-            values_file.write_text(
-                f"""component:
+            values_file.write_text(f"""component:
   name: {component_name}
   config:
     active: true
@@ -179,13 +174,11 @@ workspaces:
     port: {8080 + i % 100}
     replicas: {(i % 5) + 1}
     service_type: ClusterIP
-"""
-            )
+""")
 
             # Create some deployment and service files for half the components
             if i % 2 == 0:
-                (comp_dir / "deployment.yaml").write_text(
-                    f"""
+                (comp_dir / "deployment.yaml").write_text(f"""
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -206,11 +199,9 @@ spec:
         image: example.com/perf/{component_name}:v1.0.{i}
         ports:
         - containerPort: {8080 + i % 100}
-                """
-                )
+                """)
 
-                (comp_dir / "service.yaml").write_text(
-                    f"""
+                (comp_dir / "service.yaml").write_text(f"""
 apiVersion: v1
 kind: Service
 metadata:
@@ -223,8 +214,7 @@ spec:
   - port: {8080 + i % 100}
     targetPort: {8080 + i % 100}
   type: ClusterIP
-                """
-                )
+                """)
 
             components.append(comp_dir)
 
@@ -401,8 +391,7 @@ def test_generation_performance(perf_test_env: dict[str, Any]):
     # Create 10 template files
     for i in range(1, 11):
         template_file = large_template_dir / f"template{i}.yaml.j2"
-        template_file.write_text(
-            f"""
+        template_file.write_text(f"""
 # Template file {i}
 apiVersion: v1
 kind: ConfigMap
@@ -429,8 +418,7 @@ data:
     app.feature.x.enabled={{ feature_x_enabled | default('false') }}
     app.feature.y.enabled={{ feature_y_enabled | default('false') }}
     app.feature.z.enabled={{ feature_z_enabled | default('false') }}
-"""
-        )
+""")
 
     # No need to add the template to config, it's already there
 
@@ -445,8 +433,7 @@ data:
         comp_dir.mkdir(exist_ok=True)
 
         values_file = comp_dir / f"testapp{i}.cgvalues.yaml"
-        values_file.write_text(
-            f"""component:
+        values_file.write_text(f"""component:
   name: testapp{i}
   config:
     active: true
@@ -470,8 +457,7 @@ data:
     feature_x_enabled: {'true' if i % 2 == 0 else 'false'}
     feature_y_enabled: {'true' if i % 3 == 0 else 'false'}
     feature_z_enabled: {'true' if i % 4 == 0 else 'false'}
-"""
-        )
+""")
         component_dirs.append(comp_dir)
 
     # Track performance metrics
@@ -622,8 +608,7 @@ def test_change_detection_performance(
 
     # Create a minimal config file
     config_yaml = test_git_repo / ".cgconfig.yaml"
-    config_yaml.write_text(
-        """
+    config_yaml.write_text("""
 workspaces:
   - name: perf
     workspace_dir: perf_changes
@@ -631,8 +616,7 @@ workspaces:
     context_config_files:
       - "**/*.yaml"
       - "**/*.yml"
-    """
-    )
+    """)
 
     # Create and commit many initial files
     components_dirs = []
@@ -641,8 +625,7 @@ workspaces:
         comp_dir.mkdir(exist_ok=True)
 
         deployment_file = comp_dir / "deployment.yaml"
-        deployment_file.write_text(
-            f"""
+        deployment_file.write_text(f"""
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -663,12 +646,10 @@ spec:
         image: example.com/images/component{i}:v1.0.0
         ports:
         - containerPort: 8080
-        """
-        )
+        """)
 
         service_file = comp_dir / "service.yaml"
-        service_file.write_text(
-            f"""
+        service_file.write_text(f"""
 apiVersion: v1
 kind: Service
 metadata:
@@ -681,8 +662,7 @@ spec:
   - port: 8080
     targetPort: 8080
   type: ClusterIP
-        """
-        )
+        """)
 
         components_dirs.append(comp_dir)
 
@@ -692,8 +672,7 @@ spec:
 
     # Create rules file
     rules_file = test_git_repo / "test-rules.yaml"
-    rules_file.write_text(
-        """
+    rules_file.write_text("""
 deployments:
   - "**/*deployment*.yaml"
   - "**/*deploy*.yaml"
@@ -705,8 +684,7 @@ configs:
 documentation:
   - "**/*.md"
   - "**/docs/**"
-    """
-    )
+    """)
 
     # Make changes to a subset of files
     changes_made = 0
@@ -729,8 +707,7 @@ documentation:
 
         if i % 7 == 0:  # Add a new file to every seventh component
             config_file = comp_dir / "config.yaml"
-            config_file.write_text(
-                f"""
+            config_file.write_text(f"""
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -740,8 +717,7 @@ data:
   app.properties: |
     app.name=component{i}
     app.version=1.0.0
-            """
-            )
+            """)
             changes_made += 1
 
     # Track performance metrics
@@ -853,8 +829,7 @@ def test_large_directory_structure_performance(perf_test_env: dict[str, Any]):
             # Add a sample component at some levels
             if current_depth % 2 == 0:
                 values_file = child / f"component{current_depth}_{i}.cgvalues.yaml"
-                values_file.write_text(
-                    f"""component:
+                values_file.write_text(f"""component:
   name: component{current_depth}_{i}
   config:
     active: true
@@ -864,8 +839,7 @@ def test_large_directory_structure_performance(perf_test_env: dict[str, Any]):
     component_name: component{current_depth}_{i}
     namespace: deep-test
     replicas: {current_depth + 1}
-                """
-                )
+                """)
 
             create_nested_dirs(child, depth, width, current_depth + 1)
 
