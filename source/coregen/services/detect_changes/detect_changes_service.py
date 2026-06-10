@@ -37,16 +37,12 @@ Component Sorting:
 """
 
 import copy
-import subprocess
-import tarfile
 from pathlib import Path
 from typing import Any
 
-from git import Repo
-from git.exc import BadName, GitCommandError, GitError, InvalidGitRepositoryError
-
 from coregen.common.component_sorter_service import ComponentSorterService
-from coregen.common.path_service import PathService
+from coregen.services.detect_changes import content_diff
+from coregen.services.detect_changes.git_tree_extractor import GitTreeExtractor
 from coregen.services.detect_changes.models import (
     ChangeReason,
     ChangeStatus,
@@ -102,32 +98,6 @@ class DetectChangesService(ServicesBase):
         else:
             self._gen_kwargs["quiet"] = True
 
-        # Initialize path service for consistent path operations
-        self._path_service = PathService()
-
-        # Store GenerateService instances for reuse
-        self._current_generate_service: GenerateService | None = None
-        self._base_generate_service: GenerateService | None = None
-
-        # Define ignore patterns for files that should be skipped during comparison
-        # These are common files that don't affect functionality and don't trigger deployments
-        self._ignore_patterns = [
-            ".DS_Store",
-            ".gitkeep",
-            "*.swp",
-            "*.swo",
-            "*~",
-            ".#*",
-            "#*#",
-            "Thumbs.db",
-            "desktop.ini",
-            "*.md",
-            "*.log",
-        ]
-
-        # Initialize git repository once (lazy loading)
-        self._repo: Repo | None = None
-
     def detect_changes(
         self,
         base_branch: str = "main",
@@ -154,8 +124,12 @@ class DetectChangesService(ServicesBase):
             ValueError: If git validation fails or repository state is invalid
             RuntimeError: If git operations fail
         """
+        # One extractor owns the cached Repo for both validation and extraction;
+        # closed in the finally block to release git file handles/subprocesses.
+        git_extractor = GitTreeExtractor(self.logger)
+
         # Step 0: Validate git repository and requirements
-        repo_root, actual_base_ref = self._validate_git_repository(base_branch, verbose)
+        repo_root, actual_base_ref = git_extractor.validate(base_branch)
         self.logger.debug(
             f"Git validation passed, repo root: {repo_root}, using ref: {actual_base_ref}"
         )
@@ -201,122 +175,36 @@ class DetectChangesService(ServicesBase):
                     "Generating from current branch (includes unstaged changes)"
                 )
 
-            # Prepare kwargs for current branch generation
+            # Prepare kwargs for current branch generation. Isolate global_options
+            # once so no derived dict mutates the caller's object.
             current_gen_kwargs = self._gen_kwargs.copy()
-
-            # If global_options is present, make a copy to avoid modifying the original
             if "global_options" in current_gen_kwargs:
                 current_gen_kwargs["global_options"] = copy.copy(
                     current_gen_kwargs["global_options"]
                 )
 
-            # Handle config file resolution
-            config_file_provided = current_gen_kwargs.get("config_file")
-
-            if config_file_provided:
-                # A config file was provided, check if it needs resolution
-                config_path = Path(config_file_provided)
-                if not config_path.is_absolute():
-                    # It's a relative path - check if it exists in current directory
-                    resolved_path = Path.cwd() / config_path
-                    if not resolved_path.exists():
-                        # The relative path doesn't exist in current dir, search for it
-                        self.logger.debug(
-                            f"Config file {config_path} not found at {resolved_path}, searching..."
-                        )
-                        found_config = self._find_config_file_for_current_branch(
-                            Path.cwd(), repo_root
-                        )
-                        if found_config:
-                            current_gen_kwargs["config_file"] = found_config
-                            # Also update global_options if present
-                            if "global_options" in current_gen_kwargs and hasattr(
-                                current_gen_kwargs["global_options"], "config_file"
-                            ):
-                                current_gen_kwargs["global_options"].config_file = (
-                                    found_config
-                                )
-                            self.logger.debug(
-                                f"Found config file for current branch: {found_config}"
-                            )
-                        else:
-                            # Try default location at repo root
-                            default_config = repo_root / config_path.name
-                            if default_config.exists():
-                                current_gen_kwargs["config_file"] = default_config
-                                # Also update global_options if present
-                                if "global_options" in current_gen_kwargs and hasattr(
-                                    current_gen_kwargs["global_options"], "config_file"
-                                ):
-                                    current_gen_kwargs["global_options"].config_file = (
-                                        default_config
-                                    )
-                                self.logger.debug(
-                                    f"Using config file from repo root: {default_config}"
-                                )
-                    else:
-                        # The resolved path exists, use it
-                        current_gen_kwargs["config_file"] = resolved_path
-                        # Also update global_options if present
-                        if "global_options" in current_gen_kwargs and hasattr(
-                            current_gen_kwargs["global_options"], "config_file"
-                        ):
-                            current_gen_kwargs["global_options"].config_file = (
-                                resolved_path
-                            )
-                        self.logger.debug(
-                            f"Using resolved config file: {resolved_path}"
-                        )
-            else:
-                # No config file specified at all, search for it
-                config_file = self._find_config_file_for_current_branch(
-                    Path.cwd(), repo_root
-                )
-                if config_file:
-                    current_gen_kwargs["config_file"] = config_file
-                    # Also update global_options if present
-                    if "global_options" in current_gen_kwargs and hasattr(
-                        current_gen_kwargs["global_options"], "config_file"
-                    ):
-                        current_gen_kwargs["global_options"].config_file = config_file
-                    self.logger.debug(
-                        f"Found config file for current branch: {config_file}"
-                    )
-                else:
-                    # Try default location
-                    default_config = repo_root / ".cgconfig.yaml"
-                    if default_config.exists():
-                        current_gen_kwargs["config_file"] = default_config
-                        # Also update global_options if present
-                        if "global_options" in current_gen_kwargs and hasattr(
-                            current_gen_kwargs["global_options"], "config_file"
-                        ):
-                            current_gen_kwargs["global_options"].config_file = (
-                                default_config
-                            )
-                        self.logger.debug(
-                            f"Using default config file: {default_config}"
-                        )
-
-            # Create GenerateService for current branch
-            # Ensure config_file is absolute if present
-            if (
-                "config_file" in current_gen_kwargs
-                and current_gen_kwargs["config_file"]
-            ):
-                config_path = Path(current_gen_kwargs["config_file"])
-                if not config_path.is_absolute():
-                    current_gen_kwargs["config_file"] = config_path.resolve()
+            # Resolve the config file ONCE for the live tree as an absolute path.
+            # The base-branch path is later derived from this by re-rooting under
+            # the extracted directory.
+            resolved_config = self._resolve_live_config_path(
+                current_gen_kwargs.get("config_file"), repo_root
+            )
+            if resolved_config is not None:
+                current_gen_kwargs["config_file"] = resolved_config
+                global_options = current_gen_kwargs.get("global_options")
+                if global_options is not None and hasattr(
+                    global_options, "config_file"
+                ):
+                    global_options.config_file = resolved_config
 
             self.logger.debug(
                 f"Creating GenerateService with config_file: {current_gen_kwargs.get('config_file')}"
             )
-            self._current_generate_service = GenerateService(**current_gen_kwargs)
+            current_generate_service = GenerateService(**current_gen_kwargs)
 
-            assert self._current_generate_service is not None  # Type guard for mypy
             # Generate WITHOUT filters to see all components (for accurate comparison)
             current_components = self._generate_and_scan(
-                generate_service=self._current_generate_service,
+                generate_service=current_generate_service,
                 output_dir=temp_current,
                 filters=None,  # Don't apply filters during generation
                 include_inactive=include_inactive,
@@ -327,74 +215,37 @@ class DetectChangesService(ServicesBase):
             if verbose:
                 self.logger.debug(f"Extracting base branch files: {base_branch}")
 
-            self._extract_base_branch(base_branch, temp_extracted, verbose)
+            git_extractor.extract(base_branch, temp_extracted, verbose)
             self.logger.debug(f"Base branch extracted to: {temp_extracted}")
 
             # Step 3: Generate from extracted base branch files
             if verbose:
                 self.logger.debug("Generating from base branch files")
 
-            # Create a new GenerateService instance for base branch with modified config path
+            # Create a new GenerateService instance for base branch with modified
+            # config path. Isolate global_options once so this derived dict never
+            # shares the caller's mutable GlobalOptions object.
             base_kwargs = self._gen_kwargs.copy()
+            if "global_options" in base_kwargs:
+                base_kwargs["global_options"] = copy.copy(base_kwargs["global_options"])
 
-            # Determine the config file path for the extracted base branch
-            original_config_path = None
-            extracted_config_path = None
+            # Derive the base-branch config path by re-rooting the live config path
+            # under the extracted tree. resolved_config is absolute and under repo_root.
+            if resolved_config is None:
+                raise ValueError("No config file found for base branch generation")
 
-            # Use the resolved config file from current branch if available
-            if (
-                "config_file" in current_gen_kwargs
-                and current_gen_kwargs["config_file"]
-            ):
-                original_config_path = Path(current_gen_kwargs["config_file"])
-            elif "config_file" in self._gen_kwargs:
-                original_config_path = Path(self._gen_kwargs["config_file"])
-
-            if original_config_path:
-                # Check if the original path is absolute or relative
-                if original_config_path.is_absolute():
-                    # Get relative path from repo root
-                    try:
-                        rel_config_path = original_config_path.relative_to(repo_root)
-                        extracted_config_path = temp_extracted / rel_config_path
-                    except ValueError:
-                        # If config_file is not under repo_root, that's an error
-                        raise ValueError(
-                            f"Config file {original_config_path} is not under repository root {repo_root}"
-                        )
-                else:
-                    # For relative paths, we need to resolve them relative to the repo root
-                    # NOT the current working directory
-                    # First, resolve the path relative to the current working directory
-                    resolved_path = Path.cwd() / original_config_path
-
-                    # Now check if this resolved path exists
-                    if resolved_path.exists():
-                        # Get the path relative to repo root
-                        try:
-                            rel_config_path = resolved_path.relative_to(repo_root)
-                            extracted_config_path = temp_extracted / rel_config_path
-                        except ValueError:
-                            # Config file is outside repo - that's an error
-                            raise ValueError(
-                                f"Config file {resolved_path} is not under repository root {repo_root}"
-                            )
-                    else:
-                        # If the resolved path doesn't exist, try it as-is relative to repo root
-                        # This handles cases where the path is already relative to repo root
-                        extracted_config_path = temp_extracted / original_config_path
-
-                if not extracted_config_path.exists():
-                    raise ValueError(
-                        f"Config file not found in extracted base branch at {extracted_config_path}"
-                    )
-            else:
-                # Look for default config file - search up from current directory to repo root
-                extracted_config_path = self._find_default_config_file(
-                    Path.cwd(), repo_root, temp_extracted
+            try:
+                rel_config_path = resolved_config.relative_to(repo_root)
+            except ValueError:
+                raise ValueError(
+                    f"Config file {resolved_config} is not under repository root {repo_root}"
                 )
-                if not extracted_config_path:
-                    raise ValueError("No config file found for base branch generation")
+            extracted_config_path = temp_extracted / rel_config_path
+
+            if not extracted_config_path.exists():
+                raise ValueError(
+                    f"Config file not found in extracted base branch at {extracted_config_path}"
+                )
 
             # Create a new ConfigurationProvider with the extracted directory as root
             from coregen.config_model.provider import ConfigurationProvider
@@ -415,12 +266,11 @@ class DetectChangesService(ServicesBase):
             # Remove config_file since we're providing a pre-loaded provider
             base_kwargs.pop("config_file", None)
 
-            self._base_generate_service = GenerateService(**base_kwargs)
+            base_generate_service = GenerateService(**base_kwargs)
 
-            assert self._base_generate_service is not None  # Type guard for mypy
             # Generate WITHOUT filters to see all components (for accurate comparison)
             base_components = self._generate_and_scan(
-                generate_service=self._base_generate_service,
+                generate_service=base_generate_service,
                 output_dir=temp_main,
                 filters=None,  # Don't apply filters during generation
                 include_inactive=include_inactive,
@@ -436,13 +286,12 @@ class DetectChangesService(ServicesBase):
                     f"Comparing outputs: {len(current_components)} current vs {len(base_components)} base components"
                 )
 
-            assert self._current_generate_service is not None  # Type guard for mypy
             result = self._compare_outputs(
                 current_components,
                 base_components,
                 temp_current,
                 temp_main,
-                self._current_generate_service,
+                current_generate_service,
                 verbose=verbose,
             )
             self.logger.debug(f"Initial comparison found {len(result.changes)} changes")
@@ -450,9 +299,8 @@ class DetectChangesService(ServicesBase):
             # Step 5: Apply required component cascade logic
             if verbose:
                 self.logger.debug("Applying required component cascade logic")
-            assert self._current_generate_service is not None  # Type guard for mypy
             result = self._apply_required_cascade(
-                result, current_components, self._current_generate_service
+                result, current_components, current_generate_service
             )
             self.logger.debug(f"After cascade: {len(result.changes)} total changes")
 
@@ -523,6 +371,9 @@ class DetectChangesService(ServicesBase):
             return result
 
         finally:
+            # Release git file handles/subprocesses held by the cached Repo.
+            git_extractor.close()
+
             # Clean up temp directories unless keep_generated is True
             if not keep_generated and output_dir is None:
                 try:
@@ -540,204 +391,101 @@ class DetectChangesService(ServicesBase):
                 except Exception as e:
                     self.logger.warning(f"Failed to clean up temp directory: {e}")
 
-    def _safe_extract(self, tar: tarfile.TarFile, path: Path) -> None:
-        """Safely extract tar members, preventing path traversal attacks.
-
-        Args:
-            tar: TarFile object to extract from
-            path: Destination path
-
-        Raises:
-            RuntimeError: If unsafe paths are detected
-        """
-        base = path.resolve()
-
-        for member in tar:
-            member_path = (path / member.name).resolve()
-            # Structural containment, not string prefix: startswith() treats a
-            # sibling like "<base>_evil" as inside "<base>".
-            if member_path != base and base not in member_path.parents:
-                raise RuntimeError(f"Unsafe path in archive: {member.name}")
-            if member.issym() or member.islnk():
-                self.logger.warning(
-                    f"Skipping symlink/hardlink in archive: {member.name}"
-                )
-                continue
-            if not (member.isfile() or member.isdir()):
-                self.logger.warning(
-                    f"Skipping non-regular file in archive: {member.name}"
-                )
-                continue
-            tar.extract(member, path)
-
-    def _find_config_file_for_current_branch(
-        self, current_dir: Path, repo_root: Path
+    def _resolve_live_config_path(
+        self, config_file: Any, repo_root: Path
     ) -> Path | None:
-        """Find the config file for the current branch by searching up from current directory.
+        """Resolve the config file path for the live working tree.
+
+        Runs the standard search ladder once and returns an absolute path so the
+        base-branch path can be derived by re-rooting under the extracted tree.
+
+        Resolution order:
+        - An absolute provided path is used as-is.
+        - A relative provided path is tried under the current directory, then via
+          the upward search, then at the repo root using the provided basename.
+        - When no path is provided, the upward search (with the repo-root default)
+          is used.
 
         Args:
-            current_dir: Current working directory
+            config_file: Provided config path (absolute, relative, or None)
             repo_root: Repository root directory
 
         Returns:
-            Path to config file, or None if not found
+            Absolute path to the config file, or None if none was found
         """
-        # Default config file name
+        resolved: Path | None = None
+
+        if config_file:
+            config_path = Path(config_file)
+            if config_path.is_absolute():
+                resolved = config_path
+            else:
+                cwd_candidate = Path.cwd() / config_path
+                if cwd_candidate.exists():
+                    resolved = cwd_candidate
+                    self.logger.debug(f"Using resolved config file: {cwd_candidate}")
+                else:
+                    self.logger.debug(
+                        f"Config file {config_path} not found at {cwd_candidate}, searching..."
+                    )
+                    found = self._find_config_file(Path.cwd(), repo_root)
+                    if found:
+                        resolved = found
+                    else:
+                        # Repo-root fallback using the provided basename
+                        repo_candidate = repo_root / config_path.name
+                        if repo_candidate.exists():
+                            resolved = repo_candidate
+                            self.logger.debug(
+                                f"Using config file from repo root: {repo_candidate}"
+                            )
+        else:
+            resolved = self._find_config_file(Path.cwd(), repo_root)
+
+        if resolved is not None and not resolved.is_absolute():
+            resolved = resolved.resolve()
+
+        return resolved
+
+    def _find_config_file(self, current_dir: Path, repo_root: Path) -> Path | None:
+        """Find the live-tree config file using the standard search ladder.
+
+        Searches up from ``current_dir`` to the repository root for
+        ``.cgconfig.yaml``; if none is found along the way, falls back to the
+        default at the repository root.
+
+        Args:
+            current_dir: Directory to begin the upward search from
+            repo_root: Repository root directory (search ceiling)
+
+        Returns:
+            Path to the config file, or None if not found
+        """
         config_filename = ".cgconfig.yaml"
 
         # Start from current directory and search up to repo root
         search_dir = current_dir
         while True:
-            # Check if config file exists at this level
             config_path = search_dir / config_filename
             if config_path.exists():
                 self.logger.debug(f"Found config file at: {config_path}")
                 return config_path
 
-            # Move up one directory
             parent = search_dir.parent
             if parent == search_dir or not str(search_dir).startswith(str(repo_root)):
-                # Reached root or went outside repo
+                # Reached filesystem root or stepped outside the repo
                 break
             search_dir = parent
 
-        return None
-
-    def _find_default_config_file(
-        self, current_dir: Path, repo_root: Path, temp_extracted: Path
-    ) -> Path | None:
-        """Find the default config file by searching up from current directory.
-
-        Args:
-            current_dir: Current working directory
-            repo_root: Repository root directory
-            temp_extracted: Extracted base branch directory
-
-        Returns:
-            Path to config file in extracted directory, or None if not found
-        """
-        # Default config file name
-        config_filename = ".cgconfig.yaml"
-
-        # Start from current directory and search up to repo root
-        search_dir = current_dir
-        while True:
-            # Check if config file exists at this level
-            config_path = search_dir / config_filename
-            if config_path.exists():
-                # Found config file, get the relative path from repo root
-                try:
-                    rel_config_path = config_path.relative_to(repo_root)
-                    extracted_config_path = temp_extracted / rel_config_path
-                    if extracted_config_path.exists():
-                        self.logger.debug(
-                            f"Found config file at {config_path}, using {extracted_config_path} for base branch"
-                        )
-                        return extracted_config_path
-                except ValueError as e:
-                    # Config is outside repo, skip it
-                    self.logger.debug(
-                        f"Skipping config outside repo at {config_path}: {e}"
-                    )
-
-            # Move up one directory
-            parent = search_dir.parent
-            if parent == search_dir or not str(search_dir).startswith(str(repo_root)):
-                # Reached root or went outside repo
-                break
-            search_dir = parent
-
-        # If we didn't find it by searching up, try the default location at repo root
+        # Fall back to the default location at the repository root
         default_path = repo_root / config_filename
         if default_path.exists():
-            extracted_config_path = temp_extracted / config_filename
-            if extracted_config_path.exists():
-                self.logger.debug(
-                    f"Using default config file from repo root: {extracted_config_path}"
-                )
-                return extracted_config_path
+            self.logger.debug(
+                f"Using default config file from repo root: {default_path}"
+            )
+            return default_path
 
         return None
-
-    def _extract_base_branch(
-        self, base_branch: str, output_dir: Path, verbose: bool = False
-    ) -> None:
-        """Extract base branch files using git archive.
-
-        Args:
-            base_branch: Base branch to extract
-            output_dir: Directory to extract files to
-            verbose: Show detailed progress
-
-        Raises:
-            RuntimeError: If extraction fails
-        """
-        if verbose:
-            self.logger.debug(
-                f"Extracting files from ref '{base_branch}' to {output_dir}"
-            )
-
-        # Create output directory
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # Use cached repository instance
-            repo = self._get_repo()
-
-            # Stream git archive directly to tar extraction (no temp file)
-            proc = subprocess.Popen(
-                ["git", "archive", base_branch],
-                cwd=repo.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            try:
-                # Open tar stream and safely extract
-                # Note: mode="r|" for streaming tar without seeking
-                with tarfile.open(fileobj=proc.stdout, mode="r|") as tar:
-                    self._safe_extract(tar, output_dir)
-
-                # Wait for git archive to complete and check return code
-                stderr = proc.stderr.read() if proc.stderr else b""
-                rc = proc.wait()
-
-                if rc != 0:
-                    error_msg = (
-                        stderr.decode("utf-8", errors="replace")
-                        if stderr
-                        else "Unknown error"
-                    )
-                    raise RuntimeError(
-                        f"git archive failed with exit code {rc}: {error_msg}"
-                    )
-
-                if stderr and verbose:
-                    self.logger.debug(
-                        f"Git archive stderr: {stderr.decode('utf-8', errors='replace')}"
-                    )
-
-                self.logger.debug(
-                    f"Successfully extracted {base_branch} to {output_dir}"
-                )
-
-            except Exception:
-                # Kill the process if it's still running
-                if proc.poll() is None:
-                    proc.kill()
-                    proc.wait()
-                raise
-
-        except subprocess.SubprocessError as e:
-            self.logger.error(f"Failed to extract base branch: {e}")
-            raise RuntimeError(
-                f"Failed to extract files from ref '{base_branch}': {e}"
-            ) from e
-        except Exception as e:
-            self.logger.error(f"Failed to extract base branch: {e}")
-            raise RuntimeError(
-                f"Failed to extract files from ref '{base_branch}': {e}"
-            ) from e
 
     def _generate_and_scan(
         self,
@@ -936,20 +684,7 @@ class DetectChangesService(ServicesBase):
                 workspace, context, generate_service
             )
 
-            if not in_base and in_current:
-                # New component (treated as changed)
-                change = self._create_component_change(
-                    workspace,
-                    context,
-                    component,
-                    status=ChangeStatus.CHANGED,
-                    reason=ChangeReason.DIRECT,
-                    metadata=current_components[component_key].get("metadata", {}),
-                    context_config_file_path=context_config_path,
-                )
-                result.changes.append(change)
-
-            elif in_base and not in_current:
+            if in_base and not in_current:
                 # Deleted component - use metadata from base to set active to false
                 metadata = base_components[component_key].get("metadata", {})
                 # Mark as inactive for deleted components
@@ -965,26 +700,28 @@ class DetectChangesService(ServicesBase):
                 )
                 result.changes.append(change)
                 result.deleted.append(change)
+                continue
 
-            elif in_base and in_current:
-                # Component exists in both - compare content
-                if self._has_content_changed(
-                    component_key,
-                    current_components[component_key],
-                    base_components[component_key],
-                    current_dir,
-                    base_dir,
-                ):
-                    change = self._create_component_change(
-                        workspace,
-                        context,
-                        component,
-                        status=ChangeStatus.CHANGED,
-                        reason=ChangeReason.DIRECT,
-                        metadata=current_components[component_key].get("metadata", {}),
-                        context_config_file_path=context_config_path,
-                    )
-                    result.changes.append(change)
+            # A new component (only in current) and a component present in both
+            # whose content changed are recorded identically: CHANGED/DIRECT.
+            is_changed = not in_base or self._has_content_changed(
+                component_key,
+                current_components[component_key],
+                base_components[component_key],
+                current_dir,
+                base_dir,
+            )
+            if is_changed:
+                change = self._create_component_change(
+                    workspace,
+                    context,
+                    component,
+                    status=ChangeStatus.CHANGED,
+                    reason=ChangeReason.DIRECT,
+                    metadata=current_components[component_key].get("metadata", {}),
+                    context_config_file_path=context_config_path,
+                )
+                result.changes.append(change)
 
         if verbose:
             self.console.debug(f"Found {len(result.changes)} changed components")
@@ -1023,22 +760,6 @@ class DetectChangesService(ServicesBase):
                 f"Could not get config file path for context {workspace}/{context_name}: {e}"
             )
         return None
-
-    def _is_binary(self, path: Path) -> bool:
-        """Check if a file appears to be binary.
-
-        Args:
-            path: Path to file to check
-
-        Returns:
-            True if file appears to be binary
-        """
-        try:
-            with open(path, "rb") as f:
-                chunk = f.read(4096)
-                return b"\0" in chunk
-        except Exception:
-            return False
 
     def _has_content_changed(
         self,
@@ -1083,8 +804,8 @@ class DetectChangesService(ServicesBase):
         base_files = set(base_comp.get("files", []))
 
         # Filter out ignored files
-        current_files = self._filter_ignored_files(current_files)
-        base_files = self._filter_ignored_files(base_files)
+        current_files = content_diff.filter_ignored_files(current_files)
+        base_files = content_diff.filter_ignored_files(base_files)
 
         # If file lists differ, content has changed
         if current_files != base_files:
@@ -1100,200 +821,10 @@ class DetectChangesService(ServicesBase):
                 return True
 
             # Compare file contents (ignoring whitespace and comments)
-            if self._compare_file_content(current_file, base_file):
+            if content_diff.files_differ(current_file, base_file):
                 return True
 
         return False
-
-    def _compare_file_content(self, file1: Path, file2: Path) -> bool:
-        """Compare two files ignoring whitespace and comments.
-
-        Comment syntaxes handled:
-        - Python/Hash (#)
-        - C/C++ (// and /* */)
-        - Shell (## and #)
-        - HTML/XML (<!-- -->)
-
-        Args:
-            file1: First file path
-            file2: Second file path
-
-        Returns:
-            True if files are different (content has changed)
-        """
-        try:
-            # Check if files are binary
-            if self._is_binary(file1) or self._is_binary(file2):
-                # For binary files, compare bytes directly
-                return file1.read_bytes() != file2.read_bytes()
-
-            # For text files, normalize and compare (pass file path for type detection)
-            content1 = self._normalize_content(file1.read_text(), file1)
-            content2 = self._normalize_content(file2.read_text(), file2)
-            return content1 != content2
-        except Exception as e:
-            self.logger.warning(f"Error comparing files {file1} and {file2}: {e}")
-            # If we can't compare, assume they're different
-            return True
-
-    def _normalize_content(self, content: str, file_path: Path | None = None) -> str:
-        """Normalize content for comparison.
-
-        For JSON/YAML files, parses and re-serializes to eliminate formatting differences.
-        For other files, removes comments and normalizes whitespace.
-
-        Args:
-            content: File content to normalize
-            file_path: Optional file path to determine file type
-
-        Returns:
-            Normalized content
-        """
-        # If we have a file path, check for JSON/YAML and handle specially
-        if file_path:
-            suffix = file_path.suffix.lower()
-
-            # Handle JSON files - parse and re-serialize with sorted keys
-            if suffix == ".json":
-                try:
-                    import json
-
-                    data = json.loads(content)
-                    # Re-serialize with sorted keys and consistent formatting
-                    return json.dumps(data, sort_keys=True, indent=2)
-                except (json.JSONDecodeError, ValueError):
-                    # If parsing fails, fall through to normal processing
-                    self.logger.debug(
-                        f"Failed to parse {file_path} as JSON, using text normalization"
-                    )
-
-            # Handle YAML files - parse and re-serialize canonically
-            elif suffix in [".yaml", ".yml"]:
-                try:
-                    import yaml
-
-                    data = yaml.safe_load(content)
-                    # Re-serialize with consistent formatting
-                    return yaml.dump(data, default_flow_style=False, sort_keys=True)
-                except yaml.YAMLError:
-                    # If parsing fails, fall through to normal processing
-                    self.logger.debug(
-                        f"Failed to parse {file_path} as YAML, using text normalization"
-                    )
-
-        # Standard text normalization for non-JSON/YAML files or if parsing failed
-        lines = []
-        in_multiline_comment = False
-
-        for line in content.splitlines():
-            # Strip trailing whitespace but preserve indentation for now
-            line = line.rstrip()
-
-            # Skip empty lines
-            if not line or line.isspace():
-                continue
-
-            # Handle C-style multi-line comments more carefully
-            if in_multiline_comment:
-                # Check if comment ends on this line
-                if "*/" in line:
-                    in_multiline_comment = False
-                    # Keep the part after the comment ends
-                    _, _, after = line.partition("*/")
-                    line = after.strip()
-                    if not line:
-                        continue
-                else:
-                    # Still in multiline comment, skip entire line
-                    continue
-
-            # Check for multiline comment start
-            if "/*" in line:
-                # Handle single-line /* ... */ comments
-                if "*/" in line:
-                    # Remove just the comment part, keep rest of line
-                    before, _, rest = line.partition("/*")
-                    _, _, after = rest.partition("*/")
-                    line = before + after
-                    line = line.strip()
-                    if not line:
-                        continue
-                else:
-                    # Comment continues to next line
-                    in_multiline_comment = True
-                    # Keep the part before the comment
-                    before, _, _ = line.partition("/*")
-                    line = before.strip()
-                    if not line:
-                        continue
-
-            # Strip inline comments for YAML files (but not inside quoted strings)
-            # This handles comments like "key: value # comment"
-            if file_path and file_path.suffix.lower() in [".yaml", ".yml"]:
-                # Simple approach: if line contains # not inside quotes, remove from # onward
-                if "#" in line:
-                    # Check if # is inside quotes (simple check)
-                    in_single_quote = False
-                    in_double_quote = False
-                    for i, char in enumerate(line):
-                        if char == "'" and (i == 0 or line[i - 1] != "\\"):
-                            in_single_quote = not in_single_quote
-                        elif char == '"' and (i == 0 or line[i - 1] != "\\"):
-                            in_double_quote = not in_double_quote
-                        elif (
-                            char == "#" and not in_single_quote and not in_double_quote
-                        ):
-                            # Found a comment outside quotes
-                            line = line[:i].rstrip()
-                            break
-
-            # Handle line-starting comments
-            line_stripped = line.lstrip()
-            if line_stripped.startswith("#") or line_stripped.startswith("//"):
-                continue
-
-            # HTML/XML comments (simple handling)
-            if line_stripped.startswith("<!--") and line_stripped.endswith("-->"):
-                continue
-
-            # Normalize remaining whitespace
-            line = " ".join(line.split())
-
-            # Add normalized line
-            if line:
-                lines.append(line)
-
-        return "\n".join(lines)
-
-    def _filter_ignored_files(self, file_paths: set[str]) -> set[str]:
-        """Filter out files that match ignore patterns.
-
-        Args:
-            file_paths: Set of file paths to filter
-
-        Returns:
-            Filtered set of file paths with ignored files removed
-        """
-        import fnmatch
-
-        filtered = set()
-        for file_path in file_paths:
-            file_name = Path(file_path).name
-
-            # Check if file matches any ignore pattern
-            should_ignore = False
-            for pattern in self._ignore_patterns:
-                if fnmatch.fnmatch(file_name, pattern):
-                    should_ignore = True
-                    self.logger.debug(
-                        f"Ignoring file {file_path} (matches pattern {pattern})"
-                    )
-                    break
-
-            if not should_ignore:
-                filtered.add(file_path)
-
-        return filtered
 
     def _create_component_change(
         self,
@@ -1579,173 +1110,3 @@ class DetectChangesService(ServicesBase):
             result.total_unchanged = 0
 
         return result
-
-    def _validate_git_repository(
-        self, base_branch: str, verbose: bool = False
-    ) -> tuple[Path, str]:
-        """Validate git repository state and requirements.
-
-        Args:
-            base_branch: Base branch to validate
-            verbose: Show detailed progress
-
-        Returns:
-            Tuple of (repository root path, actual base ref to use)
-
-        Raises:
-            ValueError: If validation fails
-        """
-        # Check if we're in a git repository
-        repo = self._get_repo()
-        if not repo:
-            raise ValueError(
-                "Not in a git repository. The detect-changes command must be run from within a git repository."
-            )
-
-        repo_root = Path(repo.working_dir)
-
-        # Note: git archive has been available since git 1.4.3, so no version check needed
-        # It's much more widely available than worktree (which requires 2.5+)
-
-        # Validate base ref exists and is accessible
-        actual_base_ref = base_branch
-        if not self._ref_exists(base_branch):
-            # Try origin/main as fallback if main doesn't exist
-            if base_branch == "main" and self._ref_exists("origin/main"):
-                actual_base_ref = "origin/main"
-                self.logger.info(
-                    f"Using '{actual_base_ref}' as base branch since 'main' doesn't exist locally"
-                )
-            else:
-                raise ValueError(
-                    f"Base ref '{base_branch}' does not exist or is not accessible."
-                )
-
-        # Check repository health
-        if not self._check_repo_health():
-            raise ValueError("Repository appears to be corrupted or inaccessible.")
-
-        self.logger.debug(
-            f"Git repository validation successful: repo_root={repo_root}, base_branch={actual_base_ref}"
-        )
-
-        return repo_root, actual_base_ref
-
-    def _get_repo(self) -> Repo | None:
-        """Get or create the git repository instance.
-
-        This method implements lazy loading and caching of the repository object
-        to avoid multiple lookups.
-
-        Returns:
-            Repo instance, or None if not in a git repository
-        """
-        if self._repo is None:
-            try:
-                self._repo = Repo(search_parent_directories=True)
-            except InvalidGitRepositoryError:
-                return None
-            except GitError:
-                return None
-        return self._repo
-
-    def _is_safe_git_ref(self, ref: str) -> bool:
-        """Validate that a git ref is safe from injection attacks.
-
-        Args:
-            ref: Git ref to validate
-
-        Returns:
-            True if the ref appears safe
-        """
-        if not ref:
-            return False
-
-        # Check for dangerous patterns that could lead to command injection
-        dangerous_patterns = [
-            "..",  # Path traversal
-            ";",  # Command separator
-            "|",  # Pipe
-            "&",  # Background/command chaining
-            "`",  # Command substitution
-            "$(",  # Command substitution
-            "$((",  # Arithmetic substitution
-            ">",  # Redirect output
-            "<",  # Redirect input
-            "\\",  # Escape character
-            "\n",  # Newline
-            "\r",  # Carriage return
-            "\0",  # Null byte
-            "--",  # Could be interpreted as option (except for legitimate use)
-        ]
-
-        # Check for dangerous patterns
-        for pattern in dangerous_patterns:
-            if pattern in ref:
-                self.logger.warning(f"Unsafe git ref rejected: contains '{pattern}'")
-                return False
-
-        # Check if ref starts with dash (could be interpreted as option)
-        if ref.startswith("-"):
-            self.logger.warning("Unsafe git ref rejected: starts with '-'")
-            return False
-
-        # Additional check: ref should not contain control characters
-        if any(ord(c) < 32 for c in ref):
-            self.logger.warning("Unsafe git ref rejected: contains control characters")
-            return False
-
-        return True
-
-    def _ref_exists(self, ref: str) -> bool:
-        """Check if a git ref exists and is accessible.
-
-        This handles local branches, remote branches (origin/main), tags, and SHAs.
-
-        Args:
-            ref: Git ref to check (branch, tag, SHA, etc.)
-
-        Returns:
-            True if ref exists and is accessible
-        """
-        try:
-            # Validate ref name for security
-            if not self._is_safe_git_ref(ref):
-                return False
-
-            repo = self._get_repo()
-            if not repo:
-                return False
-            # This will raise if ref doesn't resolve
-            _ = repo.commit(ref)
-            return True
-        except (BadName, ValueError):
-            # Ref simply doesn't exist - expected
-            return False
-        except GitCommandError as e:
-            self.logger.error(f"Git command failed checking ref '{ref}': {e}")
-            raise
-        except Exception as e:
-            self.logger.error(f"Unexpected error checking ref '{ref}': {e}")
-            raise
-
-    def _check_repo_health(self) -> bool:
-        """Check basic repository health.
-
-        Returns:
-            True if repository appears healthy
-        """
-        try:
-            repo = self._get_repo()
-            if not repo:
-                return False
-
-            # Check if we can access the git directory
-            _ = repo.git_dir
-
-            # Check if we can read HEAD
-            _ = repo.head.commit
-
-            return True
-        except (GitError, AttributeError):
-            return False
