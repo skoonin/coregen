@@ -46,6 +46,7 @@ class Console:
     _color_system: Literal["auto", "standard", "256", "truecolor", "windows"] | None = (
         "auto"
     )
+    _current_style: str | None = None
     # Active output format for the current command
     _active_output_format: OutputFormat | None = None
     # Flag to track if user console has been configured

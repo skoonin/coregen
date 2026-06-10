@@ -162,7 +162,7 @@ def ensure_nested_structure(
                     elif hasattr(comp_data, "name"):
                         # It's a model object, update attributes if possible
                         if not hasattr(comp_data, "context"):
-                            comp_data.context = ctx_name  # type: ignore
+                            comp_data.context = ctx_name
 
     return result
 

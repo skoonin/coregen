@@ -566,7 +566,7 @@ class CheckPatternService(ServicesBase):
         segments = pattern.split("/")
 
         for segment in segments:
-            segment_info = {"segment": segment, "wildcards": []}
+            segment_info: dict[str, Any] = {"segment": segment, "wildcards": []}
 
             # Check for wildcards
             if "*" in segment:

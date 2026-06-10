@@ -12,10 +12,13 @@ import re
 from collections.abc import Generator
 from functools import cached_property
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from coregen.common.console import Console
 from coregen.common.logger import Logger
+
+if TYPE_CHECKING:
+    from coregen.config_model.models.settings import CoregenSettings
 
 logger = Logger(__name__)
 
@@ -50,7 +53,7 @@ class PathResolver:
         self._root_path = Path(path).resolve()
 
     @cached_property
-    def settings(self) -> dict[str, Any]:
+    def settings(self) -> "CoregenSettings":
         """
         Get application settings from coregen.config_model.models.settings module.
 
@@ -60,9 +63,9 @@ class PathResolver:
         cached_property (not property+lru_cache): lru_cache on an instance
         method keys on self and pins every instance for the process lifetime.
         """
-        # Direct import from correct path
+        # Dynamic import avoids a circular import at module load time.
         module = importlib.import_module("coregen.config_model.models.settings")
-        return cast(dict[str, Any], module.get_settings())
+        return cast("CoregenSettings", module.get_settings())
 
     def set_workspace_path(
         self, workspace_name: str, custom_path: str | None = None
@@ -211,7 +214,7 @@ class PathResolver:
 
         # Get commit_dir directly from settings
         dir_name = self.settings.context.commit_dir
-        return cast(Path, path / dir_name / component_name)
+        return path / dir_name / component_name
 
     def get_commit_dir(
         self,
