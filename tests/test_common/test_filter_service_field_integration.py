@@ -6,7 +6,7 @@ field validation and suggestion functionality.
 """
 
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
