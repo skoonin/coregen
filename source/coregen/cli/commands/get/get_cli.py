@@ -107,7 +107,7 @@ class Get(FormatValidationMixin):
             ),
         ] = settings.options.global_defaults.include_inactive,
         type: Annotated[
-            EntityType,
+            EntityType | None,
             typer.Option(
                 "--type",
                 "-t",
@@ -379,7 +379,7 @@ class Get(FormatValidationMixin):
                 self.logger.debug("Using flat format for table output (better display)")
 
             # Call the service method with the appropriate parameters
-            results = self.service.get_elements(
+            results: list[str] | dict[str, Any] = self.service.get_elements(
                 patterns=self.options["patterns"],
                 filters=self.options["filters"],
                 from_json=self.options["from_json"],

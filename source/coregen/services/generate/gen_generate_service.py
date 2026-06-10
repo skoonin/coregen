@@ -203,7 +203,7 @@ class GenerateService(ServicesBase):
         filtered_elements = processed_elements
 
         # Generate files for each element
-        results: dict[str, list[Any]] = {
+        results: dict[str, Any] = {
             "generated_files": [],
             "skipped_files": [],
             "errors": [],
@@ -346,13 +346,16 @@ class GenerateService(ServicesBase):
         workspace = self.config_access._workspace_lookup[workspace_name]
 
         # Determine primary output directory
+        primary_output_dir: Path
         if output_dir_override:
             primary_output_dir = output_dir_override
         else:
             # Use workspace output_dir - resolve it relative to config root
             workspace_paths = self.path_service.resolve_workspace_paths(workspace)
-            primary_output_dir = workspace_paths.get("output_path")
-            if not primary_output_dir:
+            resolved_output_path = workspace_paths.get("output_path")
+            if resolved_output_path:
+                primary_output_dir = resolved_output_path
+            else:
                 # Fallback to default if output_path not resolved
                 primary_output_dir = (
                     self.path_service.resolver.root_path / workspace.output_dir

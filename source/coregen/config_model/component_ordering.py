@@ -65,6 +65,6 @@ def order_components(
     )
 
     result: dict[str, Component] = {}
-    for component in sorted_components:
-        result[component.name] = component
+    for sorted_component in sorted_components:
+        result[sorted_component.name] = sorted_component
     return result

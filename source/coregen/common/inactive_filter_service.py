@@ -106,7 +106,7 @@ class InactiveFilterService:
             return filtered
 
         elif isinstance(data, list):
-            filtered = []
+            filtered_list = []
             for item in data:
                 # Skip if this item is inactive
                 if self._has_active_false(item):
@@ -119,9 +119,9 @@ class InactiveFilterService:
 
                 # Only include if there's content after filtering
                 if self._has_content(filtered_item):
-                    filtered.append(filtered_item)
+                    filtered_list.append(filtered_item)
 
-            return filtered
+            return filtered_list
 
         else:
             # For non-dict/list types, return as-is

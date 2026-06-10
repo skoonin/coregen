@@ -466,13 +466,13 @@ class CheckPatternService(ServicesBase):
                 ctx_name = comp_key.split("/")[0]
                 comp_name = comp_key.split("/")[1]
                 ctx = actual_results["matched"].get("contexts", {}).get(ctx_name)
-                ws = (
+                comp_ws = (
                     self.config_access._get_workspace_from_context(ctx) if ctx else None
                 )
 
                 matched_items.append(
                     {
-                        "path": f"{ws.name if ws else '?'}/{ctx_name}/{comp_name}",
+                        "path": f"{comp_ws.name if comp_ws else '?'}/{ctx_name}/{comp_name}",
                         "type": "Component",
                         "reason": "Matched pattern specification",
                     }

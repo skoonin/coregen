@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
+
+EntityT = TypeVar("EntityT")
 
 
 # Custom exception classes for component validation errors
@@ -47,10 +49,10 @@ class ComponentSorterService:
 
     def sort_entities(
         self,
-        entities: Sequence[dict[str, Any]] | Sequence[Any],
+        entities: Sequence[EntityT],
         entity_type: Literal["workspace", "context", "component"],
         skip_validation: bool = False,
-    ) -> list[dict[str, Any]] | list[Any]:
+    ) -> list[EntityT]:
         """Sort entities with consistent ordering rules.
 
         Args:

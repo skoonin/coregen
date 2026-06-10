@@ -7,7 +7,6 @@ pattern specifications that can be efficiently processed for matching.
 from .pattern_spec import (
     LogicalPatternSpec,
     LogicalPrefixType,
-    PatternSpec,
     PatternToken,
     PatternType,
 )
@@ -48,7 +47,7 @@ PATTERN_PREFIXES = {
 class PatternParser:
     """Parses raw pattern strings into PatternSpec objects."""
 
-    def parse(self, pattern: str) -> PatternSpec:
+    def parse(self, pattern: str) -> LogicalPatternSpec:
         """Parse a raw pattern string into a PatternSpec.
 
         Args:

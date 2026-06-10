@@ -50,7 +50,7 @@ class FilterService:
         self.logger.debug(f"Parsing filter expression: {filter_string}")
 
         # Initialize filter specification
-        filter_spec = {
+        filter_spec: dict[str, Any] = {
             "entity_type": None,
             "property": None,
             "operator": "=",

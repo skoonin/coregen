@@ -22,7 +22,7 @@ class PatternMatcherFactory:
         self,
         config_access: ConfigAccess,
         root_path: Path,
-        console: Console | None = None,
+        console: Console | type[Console] | None = None,
         logger: Logger | None = None,
     ):
         """Initialize the factory.

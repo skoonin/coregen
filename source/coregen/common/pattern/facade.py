@@ -24,7 +24,7 @@ class PatternMatcher:
         self,
         config_access: ConfigAccess,
         root_path: Path,
-        console: Console,
+        console: Console | type[Console],
         logger: Logger,
         verbose: bool | None = None,
     ):

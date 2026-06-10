@@ -43,7 +43,9 @@ class Console:
     dry_run_mode = False
     # Default output format for internal use only
     _default_output_format = OutputFormat.TEXT
-    _color_system: Literal["auto", "standard", "256", "truecolor", "windows"] = "auto"
+    _color_system: Literal["auto", "standard", "256", "truecolor", "windows"] | None = (
+        "auto"
+    )
     # Active output format for the current command
     _active_output_format: OutputFormat | None = None
     # Flag to track if user console has been configured
