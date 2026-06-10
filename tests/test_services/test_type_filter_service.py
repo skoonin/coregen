@@ -235,51 +235,6 @@ class TestTypeFilterService:
         assert result["components"] == {}
 
     # ========================================================================
-    # get_entity_type_counts Tests
-    # ========================================================================
-
-    def test_get_entity_type_counts_with_dicts(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test get_entity_type_counts returns correct counts for dict format."""
-        result = service.get_entity_type_counts(sample_data)
-
-        assert result["workspaces"] == 2
-        assert result["contexts"] == 2
-        assert result["components"] == 2
-
-    def test_get_entity_type_counts_with_lists(
-        self, service: TypeFilterService, flat_data: dict[str, Any]
-    ):
-        """Test get_entity_type_counts returns correct counts for list format."""
-        result = service.get_entity_type_counts(flat_data)
-
-        assert result["workspaces"] == 2
-        assert result["contexts"] == 2
-        assert result["components"] == 2
-
-    def test_get_entity_type_counts_empty_data(self, service: TypeFilterService):
-        """Test get_entity_type_counts handles empty data."""
-        result = service.get_entity_type_counts({})
-
-        assert result["workspaces"] == 0
-        assert result["contexts"] == 0
-        assert result["components"] == 0
-
-    def test_get_entity_type_counts_mixed_formats(self, service: TypeFilterService):
-        """Test get_entity_type_counts handles mixed dict/list formats."""
-        data = {
-            "workspaces": {"ws1": {}, "ws2": {}},
-            "contexts": ["ctx1", "ctx2", "ctx3"],
-            "components": {},
-        }
-        result = service.get_entity_type_counts(data)
-
-        assert result["workspaces"] == 2
-        assert result["contexts"] == 3
-        assert result["components"] == 0
-
-    # ========================================================================
     # filter_exclusive Tests
     # ========================================================================
 

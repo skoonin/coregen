@@ -5,36 +5,19 @@ managing test utilities across the CoreGen HPC test suite.
 
 Usage:
     from tests.test_helpers import (
-        skip_path_validation,
         create_component_change,
         create_detect_changes_result,
     )
 """
 
-from collections.abc import Generator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 from coregen.services.detect_changes.models import ComponentChange, DetectChangesResult
 
 # ============================================================================
 # Path Validation Helpers
 # ============================================================================
-
-
-@contextmanager
-def skip_path_validation() -> Generator[None, None, None]:
-    """Skip path validation in tests for model components."""
-    # Create a version of Path.exists that always returns True for tests
-
-    def mock_exists(self: Any) -> bool:
-        return True
-
-    # Apply the patch
-    with patch("pathlib.Path.exists", mock_exists):
-        yield
 
 
 # ============================================================================

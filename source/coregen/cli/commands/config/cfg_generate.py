@@ -440,10 +440,10 @@ class GenerateCommand:
         except FileNotFoundError as e:
             self.logger.error(f"Config file not found: {str(e)}")
             if self.console:
-                self.console.error(f"Error: {str(e)}")
+                self.console.error(f"{str(e)}")
             raise typer.Exit(1)
         except Exception as e:
             self.logger.error(f"Failed to generate config: {str(e)}")
             if self.console:
-                self.console.error(f"Error: Failed to generate config. {str(e)}")
+                self.console.error(f"Failed to generate config. {str(e)}")
             raise typer.Exit(1)

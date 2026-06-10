@@ -34,7 +34,7 @@ class Context(BaseModel):
     # Required fields
     name: Annotated[str, Field(..., description="Required: Context name")]
     environment: Annotated[
-        str,
+        str | None,
         Field(
             default_factory=lambda: settings.context.environment,
             description="Context's environment. Defaults to the value in settings.",

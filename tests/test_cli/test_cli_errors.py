@@ -5,40 +5,22 @@ from unittest.mock import patch
 
 def test_invalid_command_handling(cli_runner, cli_app):
     """Test handling of an invalid command."""
-    # Use catch_exceptions to prevent test from failing due to SystemExit
     result = cli_runner.invoke(cli_app, ["invalid-command"], catch_exceptions=True)
-
-    # Check that the command execution doesn't crash the test runner
-    # We're not testing exact error messages as they might vary between environments
-    if result.exception:
-        # If an exception was raised, that's expected for invalid commands
-        assert True
-    else:
-        # Otherwise check for non-zero exit code
-        assert result.exit_code != 0
+    assert result.exit_code != 0 or result.exception is not None
 
 
 def test_invalid_option_handling(cli_runner, cli_app):
     """Test handling of an invalid command-line option."""
-    # Use catch_exceptions to prevent test from failing due to SystemExit
     result = cli_runner.invoke(cli_app, ["--invalid-option"], catch_exceptions=True)
-
-    # Just verify the command was run - we're not testing exact error messages
-    # as they might vary between environments
-    assert True
+    assert result.exit_code != 0 or result.exception is not None
 
 
 def test_missing_required_argument(cli_runner, cli_app):
-    """Test error when a required argument is missing."""
-    # Use catch_exceptions to prevent test from failing due to SystemExit
-    with patch(
-        "coregen.cli.commands.generate.gen_generate_cli.console.error"
-    ) as mock_error:
-        # Test generate command which requires a path argument
+    """Test that generate command without arguments doesn't crash."""
+    with patch("coregen.cli.commands.generate.gen_generate_cli.console.error"):
         result = cli_runner.invoke(cli_app, ["generate"], catch_exceptions=True)
-
-        # No assertion needed, we're just verifying the test can run
-        assert True
+        # Command shows help or handles gracefully -- no crash
+        assert result.exception is None
 
 
 def test_config_file_not_found(cli_runner, cli_app):

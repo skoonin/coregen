@@ -264,12 +264,12 @@ class ViewCommand(FormatValidationMixin):
             self.console.print(config_data, output_format=output_format)
 
         except FileNotFoundError as e:
-            self.console.error(f"Error: {str(e)}")
+            self.console.error(f"{str(e)}")
             raise typer.Exit(1)
         except Exception as e:
             self.logger.error(f"Failed to view config: {str(e)}")
             self.logger.exception("Full traceback:")
-            self.console.error(f"Error: Failed to view config. {str(e)}")
+            self.console.error(f"Failed to view config. {str(e)}")
             raise typer.Exit(1)
         finally:
             # Always reset output format (Output Pipeline pattern)

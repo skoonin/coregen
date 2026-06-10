@@ -160,32 +160,6 @@ class TypeFilterService:
                     f"Removed workspace '{workspace_name}' (no matching contexts)"
                 )
 
-    def get_entity_type_counts(self, data: dict[str, Any]) -> dict[str, int]:
-        """Get counts of each entity type in the data.
-
-        Useful for logging and debugging.
-
-        Args:
-            data: Data dictionary to count
-
-        Returns:
-            Dictionary with counts for each entity type
-        """
-        counts = {}
-
-        for entity_type in ["workspaces", "contexts", "components"]:
-            if entity_type in data:
-                if isinstance(data[entity_type], dict):
-                    counts[entity_type] = len(data[entity_type])
-                elif isinstance(data[entity_type], list):
-                    counts[entity_type] = len(data[entity_type])
-                else:
-                    counts[entity_type] = 0
-            else:
-                counts[entity_type] = 0
-
-        return counts
-
     def filter_exclusive(
         self, data: dict[str, Any], entity_type: str
     ) -> dict[str, Any]:

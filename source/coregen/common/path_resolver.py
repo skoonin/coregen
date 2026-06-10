@@ -10,7 +10,7 @@ import importlib
 import os
 import re
 from collections.abc import Generator
-from functools import lru_cache
+from functools import cached_property
 from pathlib import Path
 from typing import Any, cast
 
@@ -49,14 +49,16 @@ class PathResolver:
         """Set the root path for the resolver."""
         self._root_path = Path(path).resolve()
 
-    @property
-    @lru_cache(maxsize=1)
+    @cached_property
     def settings(self) -> dict[str, Any]:
         """
         Get application settings from coregen.config_model.models.settings module.
 
         Raises an exception if settings cannot be loaded - we require settings
         to be available for all path resolution operations.
+
+        cached_property (not property+lru_cache): lru_cache on an instance
+        method keys on self and pins every instance for the process lifetime.
         """
         # Direct import from correct path
         module = importlib.import_module("coregen.config_model.models.settings")

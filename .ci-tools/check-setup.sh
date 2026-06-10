@@ -27,7 +27,7 @@ else
         echo "✓ Virtual environment exists"
     else
         echo "✗ Virtual environment missing or corrupted"
-        echo "  → Run: make venv"
+        echo "  → Run: make setup"
         ERRORS=$((ERRORS + 1))
     fi
 fi

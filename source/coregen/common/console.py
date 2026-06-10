@@ -583,8 +583,3 @@ class Console:
             output_format: The output format to set, or None to clear
         """
         cls._active_output_format = output_format
-
-
-# For backward compatibility with existing code
-# No instance - just the class
-Console = Console

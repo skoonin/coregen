@@ -6,6 +6,7 @@ All program default values should be defined here to ensure consistency.
 """
 
 import json
+from functools import lru_cache
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -126,12 +127,14 @@ class CoregenSettings(BaseModel):
 
 
 # Allows for lazy loading of settings
+@lru_cache(maxsize=1)
 def get_settings() -> CoregenSettings:
     """
     Get the application settings singleton.
 
     Returns a cached instance of CoregenSettings to avoid recreating
-    settings objects throughout the application.
+    settings objects throughout the application. Callers must treat the
+    returned object as read-only; nothing in the codebase mutates it.
 
     Returns:
         CoregenSettings: The application settings
