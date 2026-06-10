@@ -6,12 +6,31 @@ and visualize matching results.
 """
 
 import fnmatch
-from typing import Any
+from typing import Any, TypedDict
 
 from coregen.common.inactive_filter_service import InactiveFilterService
 from coregen.common.pattern import PatternSelector
 from coregen.common.pattern.pattern_spec import LogicalPatternSpec  # noqa: F401
 from coregen.services.services_base import ServicesBase
+
+
+class PatternExamples(TypedDict):
+    """Matched and rejected example elements for a pattern analysis."""
+
+    matched: list[dict[str, str]]
+    rejected: list[dict[str, str]]
+
+
+class PatternAnalysis(TypedDict):
+    """Structured result of analyzing why a pattern matches or rejects elements."""
+
+    pattern: str
+    pattern_type: str
+    pattern_parts: list[dict[str, Any]]
+    examples: PatternExamples
+    match_attempts: list[str]
+    phase1_results: dict[str, Any]
+    phase2_results: dict[str, Any]
 
 
 class CheckPatternService(ServicesBase):
@@ -300,7 +319,7 @@ class CheckPatternService(ServicesBase):
 
         return rejected
 
-    def _analyze_pattern_matching(self, pattern: str) -> dict[str, Any]:
+    def _analyze_pattern_matching(self, pattern: str) -> PatternAnalysis:
         """Analyze why elements match or don't match a pattern, using the two-phase matching approach.
 
         Args:
@@ -309,7 +328,7 @@ class CheckPatternService(ServicesBase):
         Returns:
             Dictionary with pattern analysis
         """
-        analysis = {
+        analysis: PatternAnalysis = {
             "pattern": pattern,
             "pattern_type": "Unknown",
             "pattern_parts": self._break_down_pattern(pattern),

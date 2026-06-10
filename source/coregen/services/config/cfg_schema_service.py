@@ -103,7 +103,7 @@ class ConfigSchemaService(ServicesBase):
             f"process_schema_request called with types: {schema_types}, format: {output_format}"
         )
 
-        result = {
+        result: dict[str, Any] = {
             "schema_data": {},
             "valid_types": [],
             "unknown_types": [],

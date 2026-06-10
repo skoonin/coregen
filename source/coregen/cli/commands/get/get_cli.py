@@ -40,6 +40,11 @@ class Get(FormatValidationMixin):
     ]
     DEFAULT_FORMAT = settings.options.get.output_format
 
+    ctx: typer.Context | None
+    options: dict[str, Any] | None
+    service: GetService | None
+    global_options: GlobalOptions | None
+
     def __init__(self) -> None:
         """Initialize the command."""
         self.logger = Logger(__name__)
@@ -393,9 +398,7 @@ class Get(FormatValidationMixin):
                 name_filter_service = NameFilterService()
 
                 type_value = self.options.get("type")
-                type_str = (
-                    type_value.value if hasattr(type_value, "value") else type_value
-                )
+                type_str = getattr(type_value, "value", type_value)
 
                 results = name_filter_service.transform_for_output(
                     results,
