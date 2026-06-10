@@ -1189,7 +1189,7 @@ class TestProviderCRIT3Validation:
         baseline_quiet = baseline.options.global_options.quiet
 
         # Create provider with specific options (different from defaults)
-        provider = ConfigurationProvider(
+        ConfigurationProvider(
             dry_run=True,
             quiet=True,
             verbose=True,

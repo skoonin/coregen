@@ -119,7 +119,7 @@ def test_platform_detection(cross_platform_env: dict[str, Any], run_cli_command)
 
     # The version output might include platform information, but at minimum
     # it should run successfully on the current platform
-    current_platform = platform.system().lower()
+    platform.system().lower()
 
     # Basic verification that the app works on this platform
     # The version command outputs something like "v1.0.0"

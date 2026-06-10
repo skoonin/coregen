@@ -82,7 +82,7 @@ def test_config_generate_init_subprocess(temp_test_dir):
         assert config_file.exists(), "Config file was not created"
 
         # Now test the init command
-        init_result = subprocess.run(
+        subprocess.run(
             [sys.executable, "-m", "coregen", "config", "init"],
             capture_output=True,
             text=True,

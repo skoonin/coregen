@@ -59,7 +59,7 @@ def test_generate_workspace_errors(cli_runner, cli_app):
         }
 
         # Run generate command with catch_exceptions
-        result = cli_runner.invoke(
+        cli_runner.invoke(
             cli_app, ["generate", "workspace/test"], catch_exceptions=True
         )
 
@@ -124,7 +124,7 @@ def test_check_pattern_invalid_pattern_error(cli_runner, cli_app):
         )
 
         # Run command with invalid pattern and catch_exceptions
-        result = cli_runner.invoke(
+        cli_runner.invoke(
             cli_app, ["check-pattern", "invalid/pattern/format"], catch_exceptions=True
         )
 
@@ -144,7 +144,7 @@ def test_non_existent_directory_error(cli_runner, cli_app):
         )
 
         # Run command that references non-existent directory with catch_exceptions
-        result = cli_runner.invoke(
+        cli_runner.invoke(
             cli_app, ["generate", "/nonexistent/dir/component"], catch_exceptions=True
         )
 
@@ -162,7 +162,7 @@ def test_syntax_error_in_config(cli_runner, cli_app):
         mock_instance.view_config.side_effect = SyntaxError("Invalid YAML syntax")
 
         # Run command that would try to parse invalid config with catch_exceptions
-        result = cli_runner.invoke(cli_app, ["config", "view"], catch_exceptions=True)
+        cli_runner.invoke(cli_app, ["config", "view"], catch_exceptions=True)
 
         # Verify service was called correctly
         mock_service.assert_called_once()
@@ -178,7 +178,7 @@ def test_detect_changes_no_git_repo_error(cli_runner, cli_app):
         mock_instance.detect_changes.side_effect = RuntimeError("Not a git repository")
 
         # Run detect-changes command with catch_exceptions
-        result = cli_runner.invoke(cli_app, ["detect-changes"], catch_exceptions=True)
+        cli_runner.invoke(cli_app, ["detect-changes"], catch_exceptions=True)
 
         # Verify service was called correctly
         mock_service.assert_called_once()

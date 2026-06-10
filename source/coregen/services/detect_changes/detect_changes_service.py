@@ -756,7 +756,7 @@ class DetectChangesService(ServicesBase):
         # Use "cm/*" to generate all components
         paths = ["cm/*"]
 
-        result = generate_service.generate_files(
+        generate_service.generate_files(
             paths=paths,
             filters=filters,
             include_inactive=include_inactive,

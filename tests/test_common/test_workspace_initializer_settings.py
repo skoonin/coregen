@@ -83,7 +83,7 @@ class TestWorkspaceInitializerSettings:
 
                 # Create WorkspaceInitializer with None for dry_run parameter
                 # This should create a new FileManager with settings-based defaults
-                initializer = WorkspaceInitializer(
+                WorkspaceInitializer(
                     path_service=mock_path_service,
                     file_manager=None,  # Let it create a new FileManager
                     dry_run=None,  # Should use settings default
