@@ -7,7 +7,7 @@ These tests focus on security validation methods that prevent:
 
 import tarfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -17,9 +17,7 @@ from coregen.services.detect_changes.detect_changes_service import DetectChanges
 @pytest.fixture
 def detect_changes_service():
     """Create a DetectChangesService instance for testing."""
-    with patch("coregen.services.detect_changes.detect_changes_service.PathService"):
-        service = DetectChangesService()
-        return service
+    return DetectChangesService()
 
 
 class TestGitRefSecurity:

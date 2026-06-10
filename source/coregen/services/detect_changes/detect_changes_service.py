@@ -46,7 +46,6 @@ from git import Repo
 from git.exc import BadName, GitCommandError, GitError, InvalidGitRepositoryError
 
 from coregen.common.component_sorter_service import ComponentSorterService
-from coregen.common.path_service import PathService
 from coregen.services.detect_changes.models import (
     ChangeReason,
     ChangeStatus,
@@ -101,13 +100,6 @@ class DetectChangesService(ServicesBase):
                 self._gen_kwargs["global_options"] = modified_global_options
         else:
             self._gen_kwargs["quiet"] = True
-
-        # Initialize path service for consistent path operations
-        self._path_service = PathService()
-
-        # Store GenerateService instances for reuse
-        self._current_generate_service: GenerateService | None = None
-        self._base_generate_service: GenerateService | None = None
 
         # Define ignore patterns for files that should be skipped during comparison
         # These are common files that don't affect functionality and don't trigger deployments
@@ -201,122 +193,36 @@ class DetectChangesService(ServicesBase):
                     "Generating from current branch (includes unstaged changes)"
                 )
 
-            # Prepare kwargs for current branch generation
+            # Prepare kwargs for current branch generation. Isolate global_options
+            # once so no derived dict mutates the caller's object.
             current_gen_kwargs = self._gen_kwargs.copy()
-
-            # If global_options is present, make a copy to avoid modifying the original
             if "global_options" in current_gen_kwargs:
                 current_gen_kwargs["global_options"] = copy.copy(
                     current_gen_kwargs["global_options"]
                 )
 
-            # Handle config file resolution
-            config_file_provided = current_gen_kwargs.get("config_file")
-
-            if config_file_provided:
-                # A config file was provided, check if it needs resolution
-                config_path = Path(config_file_provided)
-                if not config_path.is_absolute():
-                    # It's a relative path - check if it exists in current directory
-                    resolved_path = Path.cwd() / config_path
-                    if not resolved_path.exists():
-                        # The relative path doesn't exist in current dir, search for it
-                        self.logger.debug(
-                            f"Config file {config_path} not found at {resolved_path}, searching..."
-                        )
-                        found_config = self._find_config_file_for_current_branch(
-                            Path.cwd(), repo_root
-                        )
-                        if found_config:
-                            current_gen_kwargs["config_file"] = found_config
-                            # Also update global_options if present
-                            if "global_options" in current_gen_kwargs and hasattr(
-                                current_gen_kwargs["global_options"], "config_file"
-                            ):
-                                current_gen_kwargs["global_options"].config_file = (
-                                    found_config
-                                )
-                            self.logger.debug(
-                                f"Found config file for current branch: {found_config}"
-                            )
-                        else:
-                            # Try default location at repo root
-                            default_config = repo_root / config_path.name
-                            if default_config.exists():
-                                current_gen_kwargs["config_file"] = default_config
-                                # Also update global_options if present
-                                if "global_options" in current_gen_kwargs and hasattr(
-                                    current_gen_kwargs["global_options"], "config_file"
-                                ):
-                                    current_gen_kwargs["global_options"].config_file = (
-                                        default_config
-                                    )
-                                self.logger.debug(
-                                    f"Using config file from repo root: {default_config}"
-                                )
-                    else:
-                        # The resolved path exists, use it
-                        current_gen_kwargs["config_file"] = resolved_path
-                        # Also update global_options if present
-                        if "global_options" in current_gen_kwargs and hasattr(
-                            current_gen_kwargs["global_options"], "config_file"
-                        ):
-                            current_gen_kwargs["global_options"].config_file = (
-                                resolved_path
-                            )
-                        self.logger.debug(
-                            f"Using resolved config file: {resolved_path}"
-                        )
-            else:
-                # No config file specified at all, search for it
-                config_file = self._find_config_file_for_current_branch(
-                    Path.cwd(), repo_root
-                )
-                if config_file:
-                    current_gen_kwargs["config_file"] = config_file
-                    # Also update global_options if present
-                    if "global_options" in current_gen_kwargs and hasattr(
-                        current_gen_kwargs["global_options"], "config_file"
-                    ):
-                        current_gen_kwargs["global_options"].config_file = config_file
-                    self.logger.debug(
-                        f"Found config file for current branch: {config_file}"
-                    )
-                else:
-                    # Try default location
-                    default_config = repo_root / ".cgconfig.yaml"
-                    if default_config.exists():
-                        current_gen_kwargs["config_file"] = default_config
-                        # Also update global_options if present
-                        if "global_options" in current_gen_kwargs and hasattr(
-                            current_gen_kwargs["global_options"], "config_file"
-                        ):
-                            current_gen_kwargs["global_options"].config_file = (
-                                default_config
-                            )
-                        self.logger.debug(
-                            f"Using default config file: {default_config}"
-                        )
-
-            # Create GenerateService for current branch
-            # Ensure config_file is absolute if present
-            if (
-                "config_file" in current_gen_kwargs
-                and current_gen_kwargs["config_file"]
-            ):
-                config_path = Path(current_gen_kwargs["config_file"])
-                if not config_path.is_absolute():
-                    current_gen_kwargs["config_file"] = config_path.resolve()
+            # Resolve the config file ONCE for the live tree as an absolute path.
+            # The base-branch path is later derived from this by re-rooting under
+            # the extracted directory.
+            resolved_config = self._resolve_live_config_path(
+                current_gen_kwargs.get("config_file"), repo_root
+            )
+            if resolved_config is not None:
+                current_gen_kwargs["config_file"] = resolved_config
+                global_options = current_gen_kwargs.get("global_options")
+                if global_options is not None and hasattr(
+                    global_options, "config_file"
+                ):
+                    global_options.config_file = resolved_config
 
             self.logger.debug(
                 f"Creating GenerateService with config_file: {current_gen_kwargs.get('config_file')}"
             )
-            self._current_generate_service = GenerateService(**current_gen_kwargs)
+            current_generate_service = GenerateService(**current_gen_kwargs)
 
-            assert self._current_generate_service is not None  # Type guard for mypy
             # Generate WITHOUT filters to see all components (for accurate comparison)
             current_components = self._generate_and_scan(
-                generate_service=self._current_generate_service,
+                generate_service=current_generate_service,
                 output_dir=temp_current,
                 filters=None,  # Don't apply filters during generation
                 include_inactive=include_inactive,
@@ -337,64 +243,23 @@ class DetectChangesService(ServicesBase):
             # Create a new GenerateService instance for base branch with modified config path
             base_kwargs = self._gen_kwargs.copy()
 
-            # Determine the config file path for the extracted base branch
-            original_config_path = None
-            extracted_config_path = None
+            # Derive the base-branch config path by re-rooting the live config path
+            # under the extracted tree. resolved_config is absolute and under repo_root.
+            if resolved_config is None:
+                raise ValueError("No config file found for base branch generation")
 
-            # Use the resolved config file from current branch if available
-            if (
-                "config_file" in current_gen_kwargs
-                and current_gen_kwargs["config_file"]
-            ):
-                original_config_path = Path(current_gen_kwargs["config_file"])
-            elif "config_file" in self._gen_kwargs:
-                original_config_path = Path(self._gen_kwargs["config_file"])
-
-            if original_config_path:
-                # Check if the original path is absolute or relative
-                if original_config_path.is_absolute():
-                    # Get relative path from repo root
-                    try:
-                        rel_config_path = original_config_path.relative_to(repo_root)
-                        extracted_config_path = temp_extracted / rel_config_path
-                    except ValueError:
-                        # If config_file is not under repo_root, that's an error
-                        raise ValueError(
-                            f"Config file {original_config_path} is not under repository root {repo_root}"
-                        )
-                else:
-                    # For relative paths, we need to resolve them relative to the repo root
-                    # NOT the current working directory
-                    # First, resolve the path relative to the current working directory
-                    resolved_path = Path.cwd() / original_config_path
-
-                    # Now check if this resolved path exists
-                    if resolved_path.exists():
-                        # Get the path relative to repo root
-                        try:
-                            rel_config_path = resolved_path.relative_to(repo_root)
-                            extracted_config_path = temp_extracted / rel_config_path
-                        except ValueError:
-                            # Config file is outside repo - that's an error
-                            raise ValueError(
-                                f"Config file {resolved_path} is not under repository root {repo_root}"
-                            )
-                    else:
-                        # If the resolved path doesn't exist, try it as-is relative to repo root
-                        # This handles cases where the path is already relative to repo root
-                        extracted_config_path = temp_extracted / original_config_path
-
-                if not extracted_config_path.exists():
-                    raise ValueError(
-                        f"Config file not found in extracted base branch at {extracted_config_path}"
-                    )
-            else:
-                # Look for default config file - search up from current directory to repo root
-                extracted_config_path = self._find_default_config_file(
-                    Path.cwd(), repo_root, temp_extracted
+            try:
+                rel_config_path = resolved_config.relative_to(repo_root)
+            except ValueError:
+                raise ValueError(
+                    f"Config file {resolved_config} is not under repository root {repo_root}"
                 )
-                if not extracted_config_path:
-                    raise ValueError("No config file found for base branch generation")
+            extracted_config_path = temp_extracted / rel_config_path
+
+            if not extracted_config_path.exists():
+                raise ValueError(
+                    f"Config file not found in extracted base branch at {extracted_config_path}"
+                )
 
             # Create a new ConfigurationProvider with the extracted directory as root
             from coregen.config_model.provider import ConfigurationProvider
@@ -415,12 +280,11 @@ class DetectChangesService(ServicesBase):
             # Remove config_file since we're providing a pre-loaded provider
             base_kwargs.pop("config_file", None)
 
-            self._base_generate_service = GenerateService(**base_kwargs)
+            base_generate_service = GenerateService(**base_kwargs)
 
-            assert self._base_generate_service is not None  # Type guard for mypy
             # Generate WITHOUT filters to see all components (for accurate comparison)
             base_components = self._generate_and_scan(
-                generate_service=self._base_generate_service,
+                generate_service=base_generate_service,
                 output_dir=temp_main,
                 filters=None,  # Don't apply filters during generation
                 include_inactive=include_inactive,
@@ -436,13 +300,12 @@ class DetectChangesService(ServicesBase):
                     f"Comparing outputs: {len(current_components)} current vs {len(base_components)} base components"
                 )
 
-            assert self._current_generate_service is not None  # Type guard for mypy
             result = self._compare_outputs(
                 current_components,
                 base_components,
                 temp_current,
                 temp_main,
-                self._current_generate_service,
+                current_generate_service,
                 verbose=verbose,
             )
             self.logger.debug(f"Initial comparison found {len(result.changes)} changes")
@@ -450,9 +313,8 @@ class DetectChangesService(ServicesBase):
             # Step 5: Apply required component cascade logic
             if verbose:
                 self.logger.debug("Applying required component cascade logic")
-            assert self._current_generate_service is not None  # Type guard for mypy
             result = self._apply_required_cascade(
-                result, current_components, self._current_generate_service
+                result, current_components, current_generate_service
             )
             self.logger.debug(f"After cascade: {len(result.changes)} total changes")
 
@@ -570,92 +432,99 @@ class DetectChangesService(ServicesBase):
                 continue
             tar.extract(member, path)
 
-    def _find_config_file_for_current_branch(
-        self, current_dir: Path, repo_root: Path
+    def _resolve_live_config_path(
+        self, config_file: Any, repo_root: Path
     ) -> Path | None:
-        """Find the config file for the current branch by searching up from current directory.
+        """Resolve the config file path for the live working tree.
+
+        Runs the standard search ladder once and returns an absolute path so the
+        base-branch path can be derived by re-rooting under the extracted tree.
+
+        Resolution order:
+        - An absolute provided path is used as-is.
+        - A relative provided path is tried under the current directory, then via
+          the upward search, then at the repo root using the provided basename.
+        - When no path is provided, the upward search (with the repo-root default)
+          is used.
 
         Args:
-            current_dir: Current working directory
+            config_file: Provided config path (absolute, relative, or None)
             repo_root: Repository root directory
 
         Returns:
-            Path to config file, or None if not found
+            Absolute path to the config file, or None if none was found
         """
-        # Default config file name
+        resolved: Path | None = None
+
+        if config_file:
+            config_path = Path(config_file)
+            if config_path.is_absolute():
+                resolved = config_path
+            else:
+                cwd_candidate = Path.cwd() / config_path
+                if cwd_candidate.exists():
+                    resolved = cwd_candidate
+                    self.logger.debug(f"Using resolved config file: {cwd_candidate}")
+                else:
+                    self.logger.debug(
+                        f"Config file {config_path} not found at {cwd_candidate}, searching..."
+                    )
+                    found = self._find_config_file(Path.cwd(), repo_root)
+                    if found:
+                        resolved = found
+                    else:
+                        # Repo-root fallback using the provided basename
+                        repo_candidate = repo_root / config_path.name
+                        if repo_candidate.exists():
+                            resolved = repo_candidate
+                            self.logger.debug(
+                                f"Using config file from repo root: {repo_candidate}"
+                            )
+        else:
+            resolved = self._find_config_file(Path.cwd(), repo_root)
+
+        if resolved is not None and not resolved.is_absolute():
+            resolved = resolved.resolve()
+
+        return resolved
+
+    def _find_config_file(self, current_dir: Path, repo_root: Path) -> Path | None:
+        """Find the live-tree config file using the standard search ladder.
+
+        Searches up from ``current_dir`` to the repository root for
+        ``.cgconfig.yaml``; if none is found along the way, falls back to the
+        default at the repository root.
+
+        Args:
+            current_dir: Directory to begin the upward search from
+            repo_root: Repository root directory (search ceiling)
+
+        Returns:
+            Path to the config file, or None if not found
+        """
         config_filename = ".cgconfig.yaml"
 
         # Start from current directory and search up to repo root
         search_dir = current_dir
         while True:
-            # Check if config file exists at this level
             config_path = search_dir / config_filename
             if config_path.exists():
                 self.logger.debug(f"Found config file at: {config_path}")
                 return config_path
 
-            # Move up one directory
             parent = search_dir.parent
             if parent == search_dir or not str(search_dir).startswith(str(repo_root)):
-                # Reached root or went outside repo
+                # Reached filesystem root or stepped outside the repo
                 break
             search_dir = parent
 
-        return None
-
-    def _find_default_config_file(
-        self, current_dir: Path, repo_root: Path, temp_extracted: Path
-    ) -> Path | None:
-        """Find the default config file by searching up from current directory.
-
-        Args:
-            current_dir: Current working directory
-            repo_root: Repository root directory
-            temp_extracted: Extracted base branch directory
-
-        Returns:
-            Path to config file in extracted directory, or None if not found
-        """
-        # Default config file name
-        config_filename = ".cgconfig.yaml"
-
-        # Start from current directory and search up to repo root
-        search_dir = current_dir
-        while True:
-            # Check if config file exists at this level
-            config_path = search_dir / config_filename
-            if config_path.exists():
-                # Found config file, get the relative path from repo root
-                try:
-                    rel_config_path = config_path.relative_to(repo_root)
-                    extracted_config_path = temp_extracted / rel_config_path
-                    if extracted_config_path.exists():
-                        self.logger.debug(
-                            f"Found config file at {config_path}, using {extracted_config_path} for base branch"
-                        )
-                        return extracted_config_path
-                except ValueError as e:
-                    # Config is outside repo, skip it
-                    self.logger.debug(
-                        f"Skipping config outside repo at {config_path}: {e}"
-                    )
-
-            # Move up one directory
-            parent = search_dir.parent
-            if parent == search_dir or not str(search_dir).startswith(str(repo_root)):
-                # Reached root or went outside repo
-                break
-            search_dir = parent
-
-        # If we didn't find it by searching up, try the default location at repo root
+        # Fall back to the default location at the repository root
         default_path = repo_root / config_filename
         if default_path.exists():
-            extracted_config_path = temp_extracted / config_filename
-            if extracted_config_path.exists():
-                self.logger.debug(
-                    f"Using default config file from repo root: {extracted_config_path}"
-                )
-                return extracted_config_path
+            self.logger.debug(
+                f"Using default config file from repo root: {default_path}"
+            )
+            return default_path
 
         return None
 
@@ -936,20 +805,7 @@ class DetectChangesService(ServicesBase):
                 workspace, context, generate_service
             )
 
-            if not in_base and in_current:
-                # New component (treated as changed)
-                change = self._create_component_change(
-                    workspace,
-                    context,
-                    component,
-                    status=ChangeStatus.CHANGED,
-                    reason=ChangeReason.DIRECT,
-                    metadata=current_components[component_key].get("metadata", {}),
-                    context_config_file_path=context_config_path,
-                )
-                result.changes.append(change)
-
-            elif in_base and not in_current:
+            if in_base and not in_current:
                 # Deleted component - use metadata from base to set active to false
                 metadata = base_components[component_key].get("metadata", {})
                 # Mark as inactive for deleted components
@@ -965,26 +821,28 @@ class DetectChangesService(ServicesBase):
                 )
                 result.changes.append(change)
                 result.deleted.append(change)
+                continue
 
-            elif in_base and in_current:
-                # Component exists in both - compare content
-                if self._has_content_changed(
-                    component_key,
-                    current_components[component_key],
-                    base_components[component_key],
-                    current_dir,
-                    base_dir,
-                ):
-                    change = self._create_component_change(
-                        workspace,
-                        context,
-                        component,
-                        status=ChangeStatus.CHANGED,
-                        reason=ChangeReason.DIRECT,
-                        metadata=current_components[component_key].get("metadata", {}),
-                        context_config_file_path=context_config_path,
-                    )
-                    result.changes.append(change)
+            # A new component (only in current) and a component present in both
+            # whose content changed are recorded identically: CHANGED/DIRECT.
+            is_changed = not in_base or self._has_content_changed(
+                component_key,
+                current_components[component_key],
+                base_components[component_key],
+                current_dir,
+                base_dir,
+            )
+            if is_changed:
+                change = self._create_component_change(
+                    workspace,
+                    context,
+                    component,
+                    status=ChangeStatus.CHANGED,
+                    reason=ChangeReason.DIRECT,
+                    metadata=current_components[component_key].get("metadata", {}),
+                    context_config_file_path=context_config_path,
+                )
+                result.changes.append(change)
 
         if verbose:
             self.console.debug(f"Found {len(result.changes)} changed components")
@@ -1100,12 +958,12 @@ class DetectChangesService(ServicesBase):
                 return True
 
             # Compare file contents (ignoring whitespace and comments)
-            if self._compare_file_content(current_file, base_file):
+            if self._files_differ(current_file, base_file):
                 return True
 
         return False
 
-    def _compare_file_content(self, file1: Path, file2: Path) -> bool:
+    def _files_differ(self, file1: Path, file2: Path) -> bool:
         """Compare two files ignoring whitespace and comments.
 
         Comment syntaxes handled:
@@ -1149,39 +1007,72 @@ class DetectChangesService(ServicesBase):
         Returns:
             Normalized content
         """
-        # If we have a file path, check for JSON/YAML and handle specially
-        if file_path:
-            suffix = file_path.suffix.lower()
+        structured = self._normalize_structured(content, file_path)
+        if structured is not None:
+            return structured
+        return self._normalize_text(content, file_path)
 
-            # Handle JSON files - parse and re-serialize with sorted keys
-            if suffix == ".json":
-                try:
-                    import json
+    def _normalize_structured(self, content: str, file_path: Path | None) -> str | None:
+        """Canonicalize JSON/YAML content by parse-and-re-serialize.
 
-                    data = json.loads(content)
-                    # Re-serialize with sorted keys and consistent formatting
-                    return json.dumps(data, sort_keys=True, indent=2)
-                except (json.JSONDecodeError, ValueError):
-                    # If parsing fails, fall through to normal processing
-                    self.logger.debug(
-                        f"Failed to parse {file_path} as JSON, using text normalization"
-                    )
+        Returns the canonical form, or None when the file is not JSON/YAML or
+        parsing fails (caller falls back to text normalization).
 
-            # Handle YAML files - parse and re-serialize canonically
-            elif suffix in [".yaml", ".yml"]:
-                try:
-                    import yaml
+        Args:
+            content: File content to normalize
+            file_path: File path used to detect JSON/YAML by suffix
 
-                    data = yaml.safe_load(content)
-                    # Re-serialize with consistent formatting
-                    return yaml.dump(data, default_flow_style=False, sort_keys=True)
-                except yaml.YAMLError:
-                    # If parsing fails, fall through to normal processing
-                    self.logger.debug(
-                        f"Failed to parse {file_path} as YAML, using text normalization"
-                    )
+        Returns:
+            Canonical content string, or None to fall through to text handling
+        """
+        if not file_path:
+            return None
 
-        # Standard text normalization for non-JSON/YAML files or if parsing failed
+        suffix = file_path.suffix.lower()
+
+        # Handle JSON files - parse and re-serialize with sorted keys
+        if suffix == ".json":
+            try:
+                import json
+
+                data = json.loads(content)
+                # Re-serialize with sorted keys and consistent formatting
+                return json.dumps(data, sort_keys=True, indent=2)
+            except (json.JSONDecodeError, ValueError):
+                # If parsing fails, fall through to normal processing
+                self.logger.debug(
+                    f"Failed to parse {file_path} as JSON, using text normalization"
+                )
+
+        # Handle YAML files - parse and re-serialize canonically
+        elif suffix in [".yaml", ".yml"]:
+            try:
+                import yaml
+
+                data = yaml.safe_load(content)
+                # Re-serialize with consistent formatting
+                return yaml.dump(data, default_flow_style=False, sort_keys=True)
+            except yaml.YAMLError:
+                # If parsing fails, fall through to normal processing
+                self.logger.debug(
+                    f"Failed to parse {file_path} as YAML, using text normalization"
+                )
+
+        return None
+
+    def _normalize_text(self, content: str, file_path: Path | None = None) -> str:
+        """Normalize free-form text by stripping comments and whitespace.
+
+        Handles Python/Hash, C/C++, shell, and HTML/XML comment syntaxes, plus
+        YAML inline comments when file_path identifies a YAML file.
+
+        Args:
+            content: File content to normalize
+            file_path: Optional file path; enables YAML inline-comment stripping
+
+        Returns:
+            Normalized content
+        """
         lines = []
         in_multiline_comment = False
 
@@ -1621,10 +1512,6 @@ class DetectChangesService(ServicesBase):
                     f"Base ref '{base_branch}' does not exist or is not accessible."
                 )
 
-        # Check repository health
-        if not self._check_repo_health():
-            raise ValueError("Repository appears to be corrupted or inaccessible.")
-
         self.logger.debug(
             f"Git repository validation successful: repo_root={repo_root}, base_branch={actual_base_ref}"
         )
@@ -1728,24 +1615,3 @@ class DetectChangesService(ServicesBase):
         except Exception as e:
             self.logger.error(f"Unexpected error checking ref '{ref}': {e}")
             raise
-
-    def _check_repo_health(self) -> bool:
-        """Check basic repository health.
-
-        Returns:
-            True if repository appears healthy
-        """
-        try:
-            repo = self._get_repo()
-            if not repo:
-                return False
-
-            # Check if we can access the git directory
-            _ = repo.git_dir
-
-            # Check if we can read HEAD
-            _ = repo.head.commit
-
-            return True
-        except (GitError, AttributeError):
-            return False

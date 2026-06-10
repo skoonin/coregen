@@ -29,12 +29,8 @@ from coregen.services.detect_changes.models import (
 
 @pytest.fixture
 def service():
-    """Construct a DetectChangesService cheaply with PathService patched out.
-
-    Mirrors the fixture pattern in test_detect_changes_security.py.
-    """
-    with patch("coregen.services.detect_changes.detect_changes_service.PathService"):
-        return DetectChangesService()
+    """Construct a DetectChangesService for exercising its internals."""
+    return DetectChangesService()
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +196,7 @@ class TestIsBinary:
 
 
 # ---------------------------------------------------------------------------
-# C. _compare_file_content (files-differ semantics; True == changed)
+# C. _files_differ (files-differ semantics; True == changed)
 # ---------------------------------------------------------------------------
 
 
@@ -212,21 +208,21 @@ class TestCompareFileContent:
         f1.write_text("same\n")
         f2.write_text("same\n")
         # Returns True only when files differ; identical -> False.
-        assert service._compare_file_content(f1, f2) is False
+        assert service._files_differ(f1, f2) is False
 
     def test_identical_after_normalization_no_change(self, service, tmp_path):
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
         f1.write_text("# comment\nvalue\n")
         f2.write_text("value\n")
-        assert service._compare_file_content(f1, f2) is False
+        assert service._files_differ(f1, f2) is False
 
     def test_differing_files_changed(self, service, tmp_path):
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
         f1.write_text("one\n")
         f2.write_text("two\n")
-        assert service._compare_file_content(f1, f2) is True
+        assert service._files_differ(f1, f2) is True
 
     def test_unreadable_file_failsafe_changed(self, service, tmp_path):
         f1 = tmp_path / "a.txt"
@@ -235,21 +231,21 @@ class TestCompareFileContent:
         f2.write_text("data\n")
         # Documented fail-safe: any error during comparison -> treated as changed.
         with patch.object(Path, "read_text", side_effect=OSError("boom")):
-            assert service._compare_file_content(f1, f2) is True
+            assert service._files_differ(f1, f2) is True
 
     def test_binary_files_compared_by_bytes(self, service, tmp_path):
         f1 = tmp_path / "a.bin"
         f2 = tmp_path / "b.bin"
         f1.write_bytes(b"\x00\x01\x02")
         f2.write_bytes(b"\x00\x01\x03")
-        assert service._compare_file_content(f1, f2) is True
+        assert service._files_differ(f1, f2) is True
 
     def test_identical_binary_files_no_change(self, service, tmp_path):
         f1 = tmp_path / "a.bin"
         f2 = tmp_path / "b.bin"
         f1.write_bytes(b"\x00\x01\x02")
         f2.write_bytes(b"\x00\x01\x02")
-        assert service._compare_file_content(f1, f2) is False
+        assert service._files_differ(f1, f2) is False
 
 
 # ---------------------------------------------------------------------------
@@ -296,54 +292,39 @@ class TestFilterIgnoredFiles:
 class TestConfigDiscovery:
     CONFIG_NAME = ".cgconfig.yaml"
 
-    def test_find_for_current_branch_in_start_dir(self, service, tmp_path):
+    def test_find_in_start_dir(self, service, tmp_path):
         (tmp_path / self.CONFIG_NAME).write_text("workspaces: {}\n")
-        found = service._find_config_file_for_current_branch(tmp_path, tmp_path)
+        found = service._find_config_file(tmp_path, tmp_path)
         assert found == tmp_path / self.CONFIG_NAME
 
-    def test_find_for_current_branch_in_parent(self, service, tmp_path):
+    def test_find_in_parent(self, service, tmp_path):
         repo_root = tmp_path
         (repo_root / self.CONFIG_NAME).write_text("workspaces: {}\n")
         start = repo_root / "a" / "b"
         start.mkdir(parents=True)
-        found = service._find_config_file_for_current_branch(start, repo_root)
+        found = service._find_config_file(start, repo_root)
         assert found == repo_root / self.CONFIG_NAME
 
-    def test_find_for_current_branch_none_when_absent(self, service, tmp_path):
+    def test_find_none_when_absent(self, service, tmp_path):
         start = tmp_path / "a"
         start.mkdir()
-        found = service._find_config_file_for_current_branch(start, tmp_path)
+        found = service._find_config_file(start, tmp_path)
         assert found is None
 
-    def test_find_default_config_uses_extracted_copy(self, service, tmp_path):
+    def test_find_falls_back_to_repo_root_default(self, service, tmp_path):
+        # Start dir below repo root has no config; the repo-root default is used.
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
         (repo_root / self.CONFIG_NAME).write_text("workspaces: {}\n")
         start = repo_root / "x"
         start.mkdir()
-        extracted = tmp_path / "extracted"
-        extracted.mkdir()
-        (extracted / self.CONFIG_NAME).write_text("workspaces: {}\n")
+        found = service._find_config_file(start, repo_root)
+        assert found == repo_root / self.CONFIG_NAME
 
-        found = service._find_default_config_file(start, repo_root, extracted)
-        assert found == extracted / self.CONFIG_NAME
-
-    def test_find_default_config_none_when_extracted_missing(self, service, tmp_path):
+    def test_find_none_when_no_config_anywhere(self, service, tmp_path):
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
-        (repo_root / self.CONFIG_NAME).write_text("workspaces: {}\n")
-        extracted = tmp_path / "extracted"
-        extracted.mkdir()
-        # Config exists in repo_root but NOT in the extracted tree -> None.
-        found = service._find_default_config_file(repo_root, repo_root, extracted)
-        assert found is None
-
-    def test_find_default_config_none_when_no_config(self, service, tmp_path):
-        repo_root = tmp_path / "repo"
-        repo_root.mkdir()
-        extracted = tmp_path / "extracted"
-        extracted.mkdir()
-        found = service._find_default_config_file(repo_root, repo_root, extracted)
+        found = service._find_config_file(repo_root, repo_root)
         assert found is None
 
 
@@ -653,7 +634,7 @@ class TestGetWorkspaceForContext:
             service._get_workspace_for_context("ctx", gen)
 
 
-class TestRefExistsAndRepoHealth:
+class TestRefExists:
     def test_ref_exists_rejects_unsafe_ref_without_repo_call(self, service):
         # Unsafe refs are rejected before any git access.
         service._get_repo = MagicMock()
@@ -676,26 +657,3 @@ class TestRefExistsAndRepoHealth:
         repo.commit.side_effect = ValueError("bad name")
         service._get_repo = MagicMock(return_value=repo)
         assert service._ref_exists("nope") is False
-
-    def test_check_repo_health_true_when_accessible(self, service):
-        repo = MagicMock()
-        repo.git_dir = "/repo/.git"
-        repo.head.commit = MagicMock()
-        service._get_repo = MagicMock(return_value=repo)
-        assert service._check_repo_health() is True
-
-    def test_check_repo_health_false_when_no_repo(self, service):
-        service._get_repo = MagicMock(return_value=None)
-        assert service._check_repo_health() is False
-
-    def test_check_repo_health_false_on_attribute_error(self, service):
-        class FakeRepo:
-            git_dir = "/repo/.git"
-
-            @property
-            def head(self):
-                # Reading repo.head.commit raises -> caught by the handler.
-                raise AttributeError("no head")
-
-        service._get_repo = MagicMock(return_value=FakeRepo())
-        assert service._check_repo_health() is False
