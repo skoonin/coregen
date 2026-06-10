@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+from click.core import ParameterSource
 
 from coregen.cli.commands.generate.gen_generate_formatter import GenerateFormatter
 from coregen.cli.enums.enum_entity_type import EntityType
@@ -239,9 +240,14 @@ class GenerateCommand:
         ctx.obj["quiet"] = quiet or parent_obj.get("quiet", False)
         ctx.obj["verbose"] = verbose or parent_obj.get("verbose", False)
 
-        # For non-boolean options, check if they differ from defaults
+        # For non-boolean options, store based on where the value came from.
+        # Comparing against the settings default cannot distinguish "user passed
+        # the flag" from "auto_envvar filled it in"; with interspersed parsing the
+        # main callback may own the explicit flag, so an env-sourced subcommand
+        # value must not clobber it (CG_FILE_ACTION vs --file-action=skip).
+        file_action_source = ctx.get_parameter_source("file_action")
         if (
-            file_action != settings.options.global_options.file_action
+            file_action_source == ParameterSource.COMMANDLINE
             or "file_action" not in parent_obj
         ):
             ctx.obj["file_action"] = file_action
