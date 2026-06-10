@@ -704,6 +704,23 @@ class GenerateService(ServicesBase):
                     )
                     dest_path = output_dir / processed_rel_path
 
+                    # Output containment: substituted values (context/component
+                    # names) could carry "../" or absolute segments and write
+                    # outside the output tree.
+                    resolved_dest = dest_path.resolve()
+                    resolved_out = output_dir.resolve()
+                    if (
+                        resolved_dest != resolved_out
+                        and resolved_out not in resolved_dest.parents
+                    ):
+                        error_msg = (
+                            f"Generated path escapes output directory: "
+                            f"{processed_rel_path}"
+                        )
+                        self.console.error(error_msg)
+                        results["errors"].append(error_msg)
+                        continue
+
                     # Create parent directories
                     self.file_manager.create_directory(dest_path.parent)
 

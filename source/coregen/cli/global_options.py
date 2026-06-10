@@ -164,44 +164,6 @@ class GlobalOptions:
             debug=ctx.obj.get("debug", False),
         )
 
-    @classmethod
-    def from_dict(cls: type[T], options_dict: dict[str, Any]) -> T:
-        """
-        Create a GlobalOptions instance from a dictionary.
-
-        Args:
-            options_dict: Dictionary containing option values
-
-        Returns:
-            GlobalOptions instance with values from dictionary
-        """
-        logger.debug(f"Creating GlobalOptions from dict: {options_dict}")
-
-        # Create options from dictionary with defaults from settings
-        config_file_value = options_dict.get(
-            "config_file", settings.options.global_options.config_file
-        )
-        # Convert to Path using the helper method
-        config_file_value = cls._convert_to_path(config_file_value)
-
-        return cls(
-            dry_run=options_dict.get(
-                "dry_run", settings.options.global_options.dry_run
-            ),
-            file_action=options_dict.get(
-                "file_action", settings.options.global_options.file_action
-            ),
-            quiet=options_dict.get("quiet", settings.options.global_options.quiet),
-            verbose=options_dict.get(
-                "verbose", settings.options.global_options.verbose
-            ),
-            no_color=options_dict.get(
-                "no_color", settings.options.global_options.no_color
-            ),
-            config_file=config_file_value,
-            debug=options_dict.get("debug", False),
-        )
-
     def to_dict(self) -> dict[str, Any]:
         """
         Convert GlobalOptions to a dictionary.
@@ -218,20 +180,6 @@ class GlobalOptions:
             "config_file": self.config_file,
             "debug": self.debug,
         }
-
-    def update(self, **kwargs: Any) -> None:
-        """
-        Update options with provided values.
-
-        Args:
-            **kwargs: Option values to update
-        """
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-                logger.debug(f"Updated option {key} to {value}")
-            else:
-                logger.warning(f"Attempted to set unknown option: {key}")
 
     def __str__(self) -> str:
         """Return string representation of options."""

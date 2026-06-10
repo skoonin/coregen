@@ -553,11 +553,22 @@ class DetectChangesService(ServicesBase):
         """
         base = path.resolve()
 
-        # For streaming tar, we need to extract each member individually
         for member in tar:
             member_path = (path / member.name).resolve()
-            if not str(member_path).startswith(str(base)):
+            # Structural containment, not string prefix: startswith() treats a
+            # sibling like "<base>_evil" as inside "<base>".
+            if member_path != base and base not in member_path.parents:
                 raise RuntimeError(f"Unsafe path in archive: {member.name}")
+            if member.issym() or member.islnk():
+                self.logger.warning(
+                    f"Skipping symlink/hardlink in archive: {member.name}"
+                )
+                continue
+            if not (member.isfile() or member.isdir()):
+                self.logger.warning(
+                    f"Skipping non-regular file in archive: {member.name}"
+                )
+                continue
             tar.extract(member, path)
 
     def _find_config_file_for_current_branch(
