@@ -263,42 +263,32 @@ coregen your-command -o yaml --verbose | yq .
 | MATRIX | stderr             | stdout       | No      |
 | TABLE  | stderr             | stdout       | No      |
 
-## Known Deviations
+## GenerateCommand
 
-### GenerateCommand
-
-The `generate` command uses a modified output approach that partially follows the output pipeline pattern but with manual quiet mode management:
+The `generate` command supports TEXT and TABLE output and follows the pattern:
 
 **Current Implementation:**
 
 - Supports TEXT and TABLE output formats
 - Uses try/finally pattern with `console.set_output_format()`
-- Manually manages quiet mode for TABLE output during file generation
-- Writes directly to files rather than formatting structured output
+- `GenerateService` returns structured results (generated/skipped files, errors,
+  and per-component details); the command's formatter renders them
+- Writes template outputs directly to the filesystem as a side effect
 
-**Reason for Deviation:**
+**Output Model:**
 
-The generate command has a different output model compared to query commands like `get` or `detect-changes`. Rather than returning structured data for display, it:
+The generate command has a different output model compared to query commands like
+`get` or `detect-changes`. Rather than returning a single structured document, it:
 
 1. Writes template outputs directly to the filesystem
-2. Displays a progress summary during generation (using TABLE format)
+2. Returns per-component details that the formatter renders as TEXT status lines
+   or a TABLE summary
 3. Shows a final generation report
 
-The manual quiet mode management during TABLE output allows the command to suppress verbose messages while displaying the generation progress table.
-
-**Impact:**
-
-- Works correctly for TEXT and TABLE output
-- No structured output formats like JSON/YAML, so no risk of corruption
-- Manual quiet mode management is safe for the limited format support
-
-**Future Work:**
-
-Tracked in CODE-REFACTORING-DEFERRED.md - Refactor GenerateCommand to fully follow output pipeline pattern by removing manual quiet mode manipulation. This would:
-
-- Improve consistency with other commands
-- Simplify the code by removing manual quiet mode management
-- Make the command easier to maintain and extend
+Because the service returns data instead of printing user-facing status, there is
+no longer any quiet-mode manipulation: the previous TABLE-mode workaround that
+fabricated a `GlobalOptions(quiet=True, ...)` object to suppress service output
+has been removed. The same service instance is used for both formats.
 
 **Reference Implementation:**
 For proper output pipeline pattern usage, see `GetCommand` (`source/coregen/cli/commands/get/get_cli.py`) which demonstrates the correct implementation.

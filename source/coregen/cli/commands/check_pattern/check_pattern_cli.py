@@ -1,6 +1,5 @@
 """Test pattern command implementation."""
 
-import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -484,4 +483,4 @@ class CheckPattern(FormatValidationMixin):
             console.error(f"Failed to test patterns: {str(e)}")
             # Optionally re-raise or log traceback for debugging
             self.logger.exception("Error during check-pattern execution:")
-            sys.exit(2)
+            raise typer.Exit(2)

@@ -568,7 +568,7 @@ class FilterService:
         # Filter contexts to only those from remaining workspaces
         filtered_contexts = {}
         for context_name, context in elements["contexts"].items():
-            workspace_name = self._get_workspace_for_context(context)
+            workspace_name = self.get_workspace_for_context(context)
             if workspace_name in remaining_workspace_names:
                 filtered_contexts[context_name] = context
         elements["contexts"] = filtered_contexts
@@ -714,7 +714,7 @@ class FilterService:
             )
             return None
 
-    def _get_workspace_for_context(self, context: Any) -> str | None:
+    def get_workspace_for_context(self, context: Any) -> str | None:
         """Get the workspace name for a context.
 
         Args:

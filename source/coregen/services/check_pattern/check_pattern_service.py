@@ -275,9 +275,7 @@ class CheckPatternService(ServicesBase):
                 rejected["contexts"][context_name] = {
                     "name": context.name,
                     "environment": context.environment,
-                    "workspace": self.filter_service._get_workspace_for_context(
-                        context
-                    ),
+                    "workspace": self.filter_service.get_workspace_for_context(context),
                 }
 
             all_components_in_context = context.get_all_components()
@@ -295,7 +293,7 @@ class CheckPatternService(ServicesBase):
                     rejected["components"][component_key] = {
                         "name": component.name,
                         "context": context_name,
-                        "workspace": self.filter_service._get_workspace_for_context(
+                        "workspace": self.filter_service.get_workspace_for_context(
                             context
                         ),
                     }

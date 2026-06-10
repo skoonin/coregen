@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+from coregen.services.config.cfg_init_service import InitResult
+
 
 def test_invalid_command_handling(cli_runner, cli_app):
     """Test handling of an invalid command."""
@@ -30,7 +32,7 @@ def test_config_file_not_found(cli_runner, cli_app):
     ) as mock_service:
         # Configure mock to simulate missing config file
         mock_instance = mock_service.return_value
-        mock_instance.initialize_config.return_value = False
+        mock_instance.initialize_config.return_value = InitResult(success=False)
 
         # Use a non-existent config path
         result = cli_runner.invoke(

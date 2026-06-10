@@ -478,7 +478,7 @@ class TestCheckPatternService:
         service.config_access.get_all_contexts = MagicMock(return_value=all_contexts)
 
         # filter_service resolves the owning workspace name for each context.
-        service.filter_service._get_workspace_for_context = MagicMock(return_value="ws")
+        service.filter_service.get_workspace_for_context = MagicMock(return_value="ws")
 
         matched_elements = {
             "contexts": {"matched-context": matched_context},

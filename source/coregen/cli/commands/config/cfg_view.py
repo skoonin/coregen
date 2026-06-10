@@ -203,12 +203,10 @@ class ViewCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options using the standardized pattern
-        self.logger.debug(f"ctx.obj before GlobalOptions.from_context: {self.ctx.obj}")
-        global_options = GlobalOptions.from_context(self.ctx)
-        self.logger.debug(
-            f"global_options.config_file after from_context: {global_options.config_file}"
-        )
+        # Reuse global options fetched in run(); fetch on demand otherwise
+        if self.global_options is None:
+            self.global_options = GlobalOptions.from_context(self.ctx)
+        global_options = self.global_options
         options = global_options.to_dict()
 
         # Add command-specific options
