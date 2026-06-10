@@ -76,16 +76,19 @@ workspaces:
 Create your first context configuration file at `my-workspace/dev-cluster-cgvalues.yaml`:
 
 ```yaml
-name: "dev-cluster"
-environment: "dev"
-active: true
-components:
-  - name: "web-service"
-    config:
-      active: true
-      for_commit: true
-      replicas: 2
-      domain: "dev.example.com"
+# Top-level key matches the workspace's context_type ("cluster")
+cluster:
+  name: "dev-cluster"
+  environment: "dev"
+  active: true
+  # Components live under the component_type key (default "component")
+  component:
+    - name: "web-service"
+      config:
+        active: true
+        for_commit: true
+        replicas: 2
+        domain: "dev.example.com"
 ```
 
 ### Step 3: Create a Template
@@ -241,23 +244,24 @@ workspaces:
 Create `k8s/dev-cluster-cgvalues.yaml`:
 
 ```yaml
-name: "dev-cluster"
-environment: "dev"
-active: true
-region: "us-east-1"
-components:
-  - name: "web-service"
-    config:
-      active: true
-      for_commit: true
-      replicas: 2
-      domain: "dev.example.com"
-  - name: "api-service"
-    config:
-      active: true
-      for_commit: true
-      replicas: 1
-      domain: "api-dev.example.com"
+cluster:
+  name: "dev-cluster"
+  environment: "dev"
+  active: true
+  region: "us-east-1"
+  component:
+    - name: "web-service"
+      config:
+        active: true
+        for_commit: true
+        replicas: 2
+        domain: "dev.example.com"
+    - name: "api-service"
+      config:
+        active: true
+        for_commit: true
+        replicas: 1
+        domain: "api-dev.example.com"
 ```
 
 ### Production Environment
@@ -265,23 +269,24 @@ components:
 Create `k8s/prod-cluster-cgvalues.yaml`:
 
 ```yaml
-name: "prod-cluster"
-environment: "prod"
-active: true
-region: "us-west-2"
-components:
-  - name: "web-service"
-    config:
-      active: true
-      for_commit: true
-      replicas: 5
-      domain: "www.example.com"
-  - name: "api-service"
-    config:
-      active: true
-      for_commit: true
-      replicas: 3
-      domain: "api.example.com"
+cluster:
+  name: "prod-cluster"
+  environment: "prod"
+  active: true
+  region: "us-west-2"
+  component:
+    - name: "web-service"
+      config:
+        active: true
+        for_commit: true
+        replicas: 5
+        domain: "www.example.com"
+    - name: "api-service"
+      config:
+        active: true
+        for_commit: true
+        replicas: 3
+        domain: "api.example.com"
 ```
 
 ### Generate Environment-Specific Configurations
@@ -332,14 +337,14 @@ spec:
 Control what happens when files already exist:
 
 ```bash
-# Ask before overwriting (default)
+# Overwrite existing files (default)
 coregen generate "w/*"
 
 # Skip existing files
 coregen generate "w/*" --file-action skip
 
-# Overwrite without asking
-coregen generate "w/*" --file-action overwrite
+# Prompt before overwriting
+coregen generate "w/*" --file-action ask
 
 # Archive old files before generating
 coregen generate "w/*" --file-action archive

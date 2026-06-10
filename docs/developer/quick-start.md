@@ -78,17 +78,16 @@ See: [Output Pipeline Pattern](architecture/patterns/output-pipeline-pattern.md)
 
 ### Branching Strategy
 
-- **`main`** - Production-ready code with stable releases
-- **`dev`** - Protected development branch where all feature PRs are merged
-- **Workflow**: Feature branches → `dev` → `main` (via release PR)
+- **`main`** - Production-ready code; all feature PRs target this branch
+- **Workflow**: Feature branches → PR to `main`
 
 ### Development Process
 
-1. **Create feature branch** from `dev`:
+1. **Create feature branch** from `main`:
 
    ```bash
-   git checkout dev
-   git pull origin dev
+   git checkout main
+   git pull origin main
    git checkout -b feature/your-feature-name
    ```
 
@@ -104,9 +103,9 @@ See: [Output Pipeline Pattern](architecture/patterns/output-pipeline-pattern.md)
 
 5. **Commit** (pre-commit hooks run automatically)
 
-6. **Create PR to `dev`** with tests passing and coverage maintained
+6. **Create PR to `main`** from your feature branch, with tests passing and coverage maintained
 
-7. **Release**: Maintainers merge `dev` to `main`
+7. **Release**: Maintainers tag a release from `main`
 
 ## Essential Commands
 

@@ -317,10 +317,10 @@ If you find code violating this pattern:
 
 ### Commands Needing Updates (Issue #217)
 
-- Detect Changes - Uses manual quiet_mode manipulation
-- Config View - Missing set_output_format()
-- Config Schema - Missing set_output_format()
-- Check Pattern - TABLE-only but missing set_output_format()
+- Check Pattern - TABLE-only and does not call set_output_format()
+
+Config View, Config Schema, and Detect Changes now call set_output_format()
+and follow the pattern.
 
 ## References
 

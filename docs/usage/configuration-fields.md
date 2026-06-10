@@ -63,7 +63,7 @@ Defines individual contexts. The top-level key must match the workspace's `conte
 | Field | Type | Required | Default | Description |
 |-------|------|:--------:|---------|-------------|
 | `name` | string | ✓ | - | Unique context identifier |
-| `environment` | string | ✓ | - | Deployment environment (dev, staging, prod, etc.) |
+| `environment` | string \| null | | `null` | Deployment environment (dev, staging, prod, etc.); optional but strongly recommended. Defaults to null when omitted |
 | `active` | boolean | | `false` | Whether context is processed by Coregen |
 | `component_type` | string | | `"component"` | Key name for components list |
 | `commit_dir` | string | | `"for-commit"` | Directory for components marked for commit |
@@ -118,7 +118,7 @@ Components are defined in a list under the key specified by `component_type` (de
 | `for_commit` | boolean | | `false` | Copy to commit directory |
 | `required` | boolean | | `false` | Always generated with other components |
 | `priority` | int \| null | | `null` | Deployment order (0 = first, null = unordered) |
-| `path` | string | | `"{context_path}/{name}"` | Custom template path |
+| `path` | string \| null | | `null` | Custom template path; when unset, PathService resolves it. Custom paths must stay within the repository root |
 | `dependencies` | list[object] | | `[]` | Component dependencies |
 
 ### Dependency Fields
@@ -126,7 +126,7 @@ Components are defined in a list under the key specified by `component_type` (de
 | Field | Type | Required | Default | Description |
 |-------|------|:--------:|---------|-------------|
 | `name` | string | ✓ | - | Name of dependent component |
-| `path` | string | | `"{context_path}/{name}"` | Path to dependency directory |
+| `path` | string \| null | | `null` | Path to dependency directory; resolved by PathService when unset. Custom paths must stay within the repository root |
 
 ### Dependency Rules
 
@@ -290,13 +290,13 @@ coregen get components --filter "component.vars.helm_chart_version=1.2.3"
 | | active | `false` | Context values file |
 | | component_type | `"component"` | Context values file |
 | | commit_dir | `"for-commit"` | Context values file |
-| | environment | `null` | Context values file (required) |
+| | environment | `null` | Context values file (optional, strongly recommended) |
 | **Component** |
 | | active | `false` | Component config |
 | | for_commit | `false` | Component config |
 | | required | `false` | Component config |
 | | priority | `null` | Component config |
-| | path | `"{name}"` | Component config |
+| | path | `null` | Component config (resolved by PathService when unset) |
 | | dependencies | `[]` | Component config |
 
 ### CLI Defaults
@@ -406,7 +406,7 @@ These fields have **no defaults** and must be explicitly set:
 | Level | Required Fields |
 |-------|----------------|
 | Workspace | `name` |
-| Context | `name`, `environment` |
+| Context | `name` (`environment` is optional but strongly recommended) |
 | Component | `name` |
 
 ## See Also
