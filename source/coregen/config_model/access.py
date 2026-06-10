@@ -68,6 +68,9 @@ class ConfigAccess:
         # Additional lookup for environments to contexts
         self._environment_lookup: dict[str, list[Context]] = {}
 
+        # Maps a component object's id() to its owning context for O(1) lookup
+        self._component_owner_lookup: dict[int, Context] = {}
+
         self._build_lookup_tables()
 
     def _build_lookup_tables(self) -> None:
@@ -104,6 +107,9 @@ class ConfigAccess:
                     self._component_lookup[workspace.name][context_name][
                         component_name
                     ] = component
+                    # Identity-keyed owner lookup so find_components can resolve
+                    # a component's context in O(1) (see _find_context_with_component)
+                    self._component_owner_lookup[id(component)] = context
 
     def get_all_contexts(self, workspace: WorkspaceConfig) -> dict[str, Context]:
         """
@@ -115,6 +121,13 @@ class ConfigAccess:
         Returns:
             Dict[str, Context]: Dictionary of context names to context objects
         """
+        # Reuse the flattened map built during _build_lookup_tables for known
+        # workspaces. Foreign workspace objects (or calls during table build,
+        # before the entry exists) fall back to flattening on demand.
+        cached = self._context_lookup.get(workspace.name)
+        if cached:
+            return cached
+
         result = {}
         for contexts in workspace.contexts.values():
             result.update(contexts)
@@ -210,7 +223,9 @@ class ConfigAccess:
         # Then apply property filters
         return self._apply_filters(matches, filters)
 
-    def find_contexts(self, pattern: str = "*/*", **filters: Any) -> list[Context]:
+    def find_contexts(
+        self, pattern: str = "*/*", from_matcher: bool = False, **filters: Any
+    ) -> list[Context]:
         """
         Find contexts matching a pattern and filters.
 
@@ -262,38 +277,15 @@ class ConfigAccess:
                 f"Invalid context pattern: {pattern}. Format is 'workspace/context' or 'context'"
             )
 
-        # Expand patterns without glob chars to substring match, but handle patterns
-        # from ContextMatcher ("aws" should match "aws-*" not "*aws*")
+        # Expand patterns without glob chars. Pattern-matcher callers want a
+        # prefix match ("aws" -> "aws*", matching "aws-*" not "*aws*"); direct
+        # API callers want a substring match ("aws" -> "*aws*").
         def _expand(pat: str) -> str:
-            # If pattern doesn't have glob chars
             if not any(c in pat for c in "*?[]"):
-                # If pattern is from the pattern matcher subsystem
-                if caller_is_pattern_matcher():
-                    # Ensure pattern matches from start (e.g., "aws" matches "aws-*" not "*aws*")
+                if from_matcher:
                     return f"{pat}*"
-                else:
-                    # Default behavior: substring match
-                    return f"*{pat}*"
+                return f"*{pat}*"
             return pat
-
-        def caller_is_pattern_matcher() -> bool:
-            """Check if the caller is from the pattern matcher subsystem.
-
-            This allows us to handle patterns differently when they come from
-            the matchers vs. direct API calls.
-            """
-            import inspect
-
-            frames = inspect.stack()
-            for frame in frames[1:]:  # Skip current frame
-                filename = frame.filename
-                if (
-                    "matchers.py" in filename
-                    or "pattern_matcher.py" in filename
-                    or "pattern/facade.py" in filename
-                ):
-                    return True
-            return False
 
         workspace_pattern = _expand(workspace_pattern)
         context_pattern = _expand(context_pattern)
@@ -474,18 +466,6 @@ class ConfigAccess:
                     f"  - Workspace '{workspace_name}' doesn't match pattern '{workspace_pattern}'"
                 )
 
-        # Compatibility option: for exact patterns without wildcards, fall back to exact full path matching
-        if "*" not in pattern and "?" not in pattern and "[" not in pattern:
-            for workspace_name, contexts in self._component_lookup.items():
-                for context_name, components in contexts.items():
-                    for component_name, component in components.items():
-                        full_path = f"{workspace_name}/{context_name}/{component_name}"
-                        if full_path == pattern and component not in matches:
-                            log_debug(
-                                f"    - Exact path match: '{full_path}' equals pattern '{pattern}'"
-                            )
-                            matches.append(component)
-
         # Handle environment in filters
         environment = filters.get("environment")
         remaining_filters = dict(filters)
@@ -535,16 +515,12 @@ class ConfigAccess:
         return filtered_matches
 
     def _find_context_with_component(self, component: Component) -> Context | None:
-        """Find the context that contains a specific component."""
-        for workspace_name, contexts in self._context_lookup.items():
-            for context_name, context in contexts.items():
-                all_components = context.get_all_components()
-                if (
-                    component.name in all_components
-                    and all_components[component.name] is component
-                ):
-                    return context
-        return None
+        """Find the context that contains a specific component.
+
+        Resolved in O(1) via the identity-keyed owner lookup built during
+        _build_lookup_tables.
+        """
+        return self._component_owner_lookup.get(id(component))
 
     def find_contexts_in_workspace(
         self, workspace: WorkspaceConfig, pattern: str = "*"

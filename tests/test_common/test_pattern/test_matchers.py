@@ -215,7 +215,9 @@ class TestContextMatcher:
         assert match_result is True
         assert "aws-cluster-dev" in result["contexts"]
         assert "aws" in result["workspaces"]
-        mock_config_access.find_contexts.assert_called_once_with("aws-cluster-dev")
+        mock_config_access.find_contexts.assert_called_once_with(
+            "aws-cluster-dev", from_matcher=True
+        )
 
     def test_match_context_with_wildcard(self, setup_context_matcher):
         """Test matching contexts with wildcards."""
@@ -273,7 +275,9 @@ class TestContextMatcher:
         assert "gcp" in result["workspaces"]
 
         # Verify the find_contexts was called with the right pattern
-        mock_config_access.find_contexts.assert_called_once_with("*-dev")
+        mock_config_access.find_contexts.assert_called_once_with(
+            "*-dev", from_matcher=True
+        )
 
 
 @pytest.fixture
