@@ -37,49 +37,41 @@ def error_test_env(temp_test_dir: Path) -> dict[str, Any]:
     # Create minimal test_data directory with just a config file
     test_data_dir = error_test_dir / "test_data"
     test_data_dir.mkdir(exist_ok=True)
-    (test_data_dir / ".cgconfig.yaml").write_text(
-        """
+    (test_data_dir / ".cgconfig.yaml").write_text("""
 workspaces:
   - name: error_test
     workspace_dir: ..
     context_type: component
     context_config_files:
       - "**/*.yaml"
-"""
-    )
+""")
 
     # Create an invalid configuration file
     invalid_config = error_test_dir / "invalid.cgconfig.yaml"
-    invalid_config.write_text(
-        """
+    invalid_config.write_text("""
     workspaces
       - name: invalid
         workspace_dir: .
-    """
-    )  # Intentionally invalid YAML
+    """)  # Intentionally invalid YAML
 
     # Create a valid but incomplete configuration file
     incomplete_config = error_test_dir / "incomplete.cgconfig.yaml"
-    incomplete_config.write_text(
-        """
+    incomplete_config.write_text("""
     workspaces:
       - name: incomplete
         # Missing required workspace_dir
-    """
-    )
+    """)
 
     # Create a valid configuration with non-existent paths
     nonexistent_config = error_test_dir / ".cgconfig.yaml"
-    nonexistent_config.write_text(
-        """
+    nonexistent_config.write_text("""
     workspaces:
       - name: nonexistent
         workspace_dir: /path/does/not/exist
         context_type: component
         context_config_files:
           - non_existent/*.yaml
-    """
-    )
+    """)
 
     # Create an empty rules file
     empty_rules = error_test_dir / "empty_rules.yaml"
@@ -87,12 +79,10 @@ workspaces:
 
     # Create an invalid rules file
     invalid_rules = error_test_dir / "invalid_rules.yaml"
-    invalid_rules.write_text(
-        """
+    invalid_rules.write_text("""
     invalid:
       not a list
-    """
-    )
+    """)
 
     # Return the environment configuration
     return {
@@ -140,16 +130,14 @@ def test_non_existent_patterns(error_test_env: dict[str, Any], run_cli_command):
 
     # Create a minimal config file
     config_yaml = error_test_env["root_dir"] / ".cgconfig.yaml"
-    config_yaml.write_text(
-        """
+    config_yaml.write_text("""
     workspaces:
       - name: test
         workspace_dir: .
         context_type: component
         context_config_files:
           - test/*.yaml
-    """
-    )
+    """)
 
     # Run get command with a filesystem pattern (now rejected)
     result = run_cli_command("get d/does/not/exist", expected_code=2)
@@ -174,16 +162,14 @@ def test_invalid_filter_syntax(error_test_env: dict[str, Any], run_cli_command):
 
     # Create a basic config file
     config_yaml = error_test_env["root_dir"] / ".cgconfig.yaml"
-    config_yaml.write_text(
-        """
+    config_yaml.write_text("""
     workspaces:
       - name: test
         workspace_dir: .
         context_type: component
         context_config_files:
           - test/*.yaml
-    """
-    )
+    """)
 
     # Initialize git repo for detect-changes to work
     from .conftest import _setup_git_repo
@@ -236,13 +222,11 @@ def test_invalid_configuration_syntax(error_test_env: dict[str, Any], run_cli_co
 
         # Create invalid config in this directory
         invalid_yaml = Path(tmpdir) / "invalid.yaml"
-        invalid_yaml.write_text(
-            """
+        invalid_yaml.write_text("""
 workspaces
   - name: invalid
     workspace_dir: .
-"""
-        )  # Intentionally invalid YAML (missing colon)
+""")  # Intentionally invalid YAML (missing colon)
 
         # Run config view with invalid config file
         result = run_cli_command(
@@ -347,16 +331,14 @@ def test_no_git_repo(error_test_env: dict[str, Any], run_cli_command, monkeypatc
 
     # Create a basic config file
     config_yaml = error_test_env["root_dir"] / ".cgconfig.yaml"
-    config_yaml.write_text(
-        """
+    config_yaml.write_text("""
     workspaces:
       - name: test
         workspace_dir: .
         context_type: component
         context_config_files:
           - test/*.yaml
-    """
-    )
+    """)
 
     # Run detect-changes which requires git - accept any exit code
     result = run_cli_command("detect-changes", expected_code=None)
@@ -416,13 +398,11 @@ def test_permission_error_config_file(
 
     # Create a config file
     config_path = error_test_env["root_dir"] / "permission_protected.cgconfig.yaml"
-    config_path.write_text(
-        """
+    config_path.write_text("""
     workspaces:
       - name: test
         workspace_dir: .
-    """
-    )
+    """)
 
     # Mock file open to raise permission error
     original_open = open

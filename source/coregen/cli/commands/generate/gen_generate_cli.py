@@ -239,11 +239,17 @@ class GenerateCommand:
         ctx.obj["quiet"] = quiet or parent_obj.get("quiet", False)
         ctx.obj["verbose"] = verbose or parent_obj.get("verbose", False)
 
-        # For non-boolean options, check if they differ from defaults
+        # For non-boolean options, store based on where the value came from.
+        # Comparing against the settings default cannot distinguish "user passed
+        # the flag" from "auto_envvar filled it in"; with interspersed parsing the
+        # main callback may own the explicit flag, so an env-sourced subcommand
+        # value must not clobber it (CG_FILE_ACTION vs --file-action=skip).
+        # Compared by enum name: Typer 0.26+ vendors click, so the ParameterSource
+        # class is not importable from a stable public location.
+        file_action_source = ctx.get_parameter_source("file_action")
         if (
-            file_action != settings.options.global_options.file_action
-            or "file_action" not in parent_obj
-        ):
+            file_action_source is not None and file_action_source.name == "COMMANDLINE"
+        ) or "file_action" not in parent_obj:
             ctx.obj["file_action"] = file_action
 
         # For config_file, only override if explicitly provided (different from default)

@@ -100,8 +100,7 @@ def test_unicode_filter_values(env_setup, run_cli_command):
     # Japanese description
     jp_comp = test_context / "unicode_filter_jp"
     jp_comp.mkdir(exist_ok=True)
-    (jp_comp / "unicode_filter_jp.cgvalues.yaml").write_text(
-        """component:
+    (jp_comp / "unicode_filter_jp.cgvalues.yaml").write_text("""component:
   name: unicode_filter_jp
   config:
     active: true
@@ -112,14 +111,12 @@ def test_unicode_filter_values(env_setup, run_cli_command):
     description: "テストコンポーネント"
     author: "田中太郎"
     team: "開発チーム"
-"""
-    )
+""")
 
     # Chinese description
     cn_comp = test_context / "unicode_filter_cn"
     cn_comp.mkdir(exist_ok=True)
-    (cn_comp / "unicode_filter_cn.cgvalues.yaml").write_text(
-        """component:
+    (cn_comp / "unicode_filter_cn.cgvalues.yaml").write_text("""component:
   name: unicode_filter_cn
   config:
     active: true
@@ -130,14 +127,12 @@ def test_unicode_filter_values(env_setup, run_cli_command):
     description: "测试组件"
     author: "李明"
     team: "开发团队"
-"""
-    )
+""")
 
     # Russian description
     ru_comp = test_context / "unicode_filter_ru"
     ru_comp.mkdir(exist_ok=True)
-    (ru_comp / "unicode_filter_ru.cgvalues.yaml").write_text(
-        """component:
+    (ru_comp / "unicode_filter_ru.cgvalues.yaml").write_text("""component:
   name: unicode_filter_ru
   config:
     active: true
@@ -148,8 +143,7 @@ def test_unicode_filter_values(env_setup, run_cli_command):
     description: "тестовый компонент"
     author: "Иван Петров"
     team: "команда разработки"
-"""
-    )
+""")
 
     # Test filtering by Unicode description
     result = run_cli_command(
@@ -228,8 +222,7 @@ def test_complex_unicode_filter_combinations(env_setup, run_cli_command):
     for comp_data in components_data:
         comp_dir = test_context / comp_data["name"]
         comp_dir.mkdir(exist_ok=True)
-        (comp_dir / f"{comp_data['name']}.cgvalues.yaml").write_text(
-            f"""component:
+        (comp_dir / f"{comp_data['name']}.cgvalues.yaml").write_text(f"""component:
   name: {comp_data['name']}
   config:
     active: {str(comp_data['active']).lower()}
@@ -239,8 +232,7 @@ def test_complex_unicode_filter_combinations(env_setup, run_cli_command):
     component_name: {comp_data['name']}
     team: "{comp_data['team']}"
     environment: "{comp_data['env']}"
-"""
-        )
+""")
 
     # Test combination of active filter with Unicode components
     result = run_cli_command(

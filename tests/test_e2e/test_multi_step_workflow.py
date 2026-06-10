@@ -47,8 +47,7 @@ def workflow_env(temp_test_dir: Path, test_git_repo: Path) -> dict[str, Any]:
     service_dir.mkdir(exist_ok=True)
 
     # Create service template files
-    (service_dir / "deployment.yaml.j2").write_text(
-        """
+    (service_dir / "deployment.yaml.j2").write_text("""
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -69,11 +68,9 @@ spec:
         image: {{ image_repo }}/{{ component_name }}:{{ image_tag | default('latest') }}
         ports:
         - containerPort: {{ port | default(8080) }}
-    """
-    )
+    """)
 
-    (service_dir / "service.yaml.j2").write_text(
-        """
+    (service_dir / "service.yaml.j2").write_text("""
 apiVersion: v1
 kind: Service
 metadata:
@@ -86,11 +83,9 @@ spec:
   - port: {{ port | default(8080) }}
     targetPort: {{ port | default(8080) }}
   type: {{ service_type | default('ClusterIP') }}
-    """
-    )
+    """)
 
-    (service_dir / "README.md.j2").write_text(
-        """
+    (service_dir / "README.md.j2").write_text("""
 # {{ component_name | title }}
 
 This is a generated service component.
@@ -101,13 +96,11 @@ This is a generated service component.
 - Replicas: {{ replicas | default(1) }}
 - Port: {{ port | default(8080) }}
 - Service Type: {{ service_type | default('ClusterIP') }}
-    """
-    )
+    """)
 
     # Create a helper pattern matching rule file
     rules_file = workflow_test_dir / "test-rules.yaml"
-    rules_file.write_text(
-        """
+    rules_file.write_text("""
 code_changes:
   - "**/*.yaml"
   - "**/*.yml"
@@ -117,8 +110,7 @@ documentation:
 configuration:
   - "**/*.json"
   - "**/*.cfg"
-    """
-    )
+    """)
 
     # Create contexts directory structure
     contexts_dir = workflow_test_dir / "contexts"
@@ -243,8 +235,7 @@ def test_config_migration_workflow(workflow_env: dict[str, Any], run_cli_command
 
     # Create a config file - this will be overwritten with --force
     initial_config = workflow_env["root_dir"] / ".cgconfig.yaml"
-    initial_config.write_text(
-        """
+    initial_config.write_text("""
 workspaces:
   - name: test-ws
     workspace_dir: contexts/dev
@@ -257,8 +248,7 @@ templates:
     description: "Test service template"
 settings:
   verbose: true
-    """
-    )
+    """)
 
     # Step 2: Generate new config with --force
     generate_result = run_cli_command("config generate --force", expected_code=0)

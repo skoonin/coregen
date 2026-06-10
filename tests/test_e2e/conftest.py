@@ -6,6 +6,7 @@ are now available from the root conftest.py. This file contains E2E-specific fix
 Note: E2E tests should use cli_app_raw if they need to verify actual console output.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -228,12 +229,10 @@ def gen_test_env(temp_test_dir: Path, env_setup: dict[str, Any]) -> dict[str, An
     dependencies_file = prometheus_dir / "dependencies.yml"
     if not dependencies_file.exists():
         with open(dependencies_file, "w") as f:
-            f.write(
-                """
+            f.write("""
 dependencies:
   - metrics-server
-"""
-            )
+""")
 
     # Create contexts directory
     contexts_dir = gen_test_dir / "contexts"
@@ -313,20 +312,22 @@ def run_cli_command() -> (
 
         # Change to specified working directory if provided
         if cwd:
-            import os
-
             os.chdir(cwd)
+
+        # Hermetic environment: ambient CG_* variables (e.g. from a developer's
+        # shell profile) feed Typer's auto_envvar options and change CLI behavior.
+        # Unset them all, then apply only what the test explicitly provides.
+        sanitized_env: dict[str, str | None] = {
+            key: None for key in os.environ if key.startswith("CG_")
+        }
+        if env:
+            sanitized_env.update(env)
 
         try:
             # Run the command with exception catching enabled to capture error messages
-            if env:
-                result = runner.invoke(app, args, catch_exceptions=True, env=env)
-            else:
-                result = runner.invoke(app, args, catch_exceptions=True)
+            result = runner.invoke(app, args, catch_exceptions=True, env=sanitized_env)
         finally:
             # Always restore original working directory
-            import os
-
             os.chdir(original_cwd)
 
         # Handle stdout and stderr output

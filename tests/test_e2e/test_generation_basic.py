@@ -272,12 +272,10 @@ def test_component_with_dependencies(gen_test_env: dict[str, Any], run_cli_comma
     prometheus_dir = gen_test_env["root_dir"] / "common-templates" / "prometheus"
 
     # Create a special dependency file to indicate metrics-server is a dependency
-    (prometheus_dir / "dependencies.yml").write_text(
-        """
+    (prometheus_dir / "dependencies.yml").write_text("""
 dependencies:
   - metrics-server
-"""
-    )
+""")
 
     # Run generate command for the component with dependencies
     result = run_cli_command(

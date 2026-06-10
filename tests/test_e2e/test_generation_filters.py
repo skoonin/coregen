@@ -59,8 +59,7 @@ def test_generate_multiple_filters(gen_test_env: dict[str, Any], run_cli_command
     test_context.mkdir(exist_ok=True)
 
     # Create context values
-    (test_context / "filter-test-cgvalues.yaml").write_text(
-        """context:
+    (test_context / "filter-test-cgvalues.yaml").write_text("""context:
   name: filter-test
   environment: test
   active: true
@@ -102,8 +101,7 @@ def test_generate_multiple_filters(gen_test_env: dict[str, Any], run_cli_command
       vars:
         environment: prod
         team: frontend
-"""
-    )
+""")
 
     # Don't create component directories to avoid conflicts with inline definitions
 
