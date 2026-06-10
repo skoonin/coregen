@@ -10,15 +10,18 @@ they opt out of the autouse path-mocking fixture in conftest.py.
 """
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
+from coregen.services.detect_changes import content_diff
 from coregen.services.detect_changes.detect_changes_service import (
     DetectChangesService,
 )
+from coregen.services.detect_changes.git_tree_extractor import GitTreeExtractor
 from coregen.services.detect_changes.models import (
     ChangeReason,
     ChangeStatus,
@@ -43,16 +46,16 @@ class TestNormalizeContentJson:
 
     def test_json_key_order_canonicalized(self, service):
         path = Path("config.json")
-        a = service._normalize_content('{"b": 1, "a": 2}', path)
-        b = service._normalize_content('{"a": 2, "b": 1}', path)
+        a = content_diff.normalize_content('{"b": 1, "a": 2}', path)
+        b = content_diff.normalize_content('{"a": 2, "b": 1}', path)
         assert a == b
         # Canonical form is json.dumps(sort_keys=True, indent=2)
         assert a == json.dumps({"a": 2, "b": 1}, sort_keys=True, indent=2)
 
     def test_json_nested_key_order_canonicalized(self, service):
         path = Path("config.json")
-        a = service._normalize_content('{"x": {"q": 1, "p": 2}}', path)
-        b = service._normalize_content('{"x": {"p": 2, "q": 1}}', path)
+        a = content_diff.normalize_content('{"x": {"q": 1, "p": 2}}', path)
+        b = content_diff.normalize_content('{"x": {"p": 2, "q": 1}}', path)
         assert a == b
 
     def test_invalid_json_falls_through_to_text(self, service):
@@ -60,7 +63,7 @@ class TestNormalizeContentJson:
         # Not valid JSON -> text normalization. A full-line '#' comment is
         # stripped by the text path, proving it fell through.
         content = "# comment line\nnot json at all"
-        result = service._normalize_content(content, path)
+        result = content_diff.normalize_content(content, path)
         assert "# comment line" not in result
         assert "not json at all" in result
 
@@ -70,8 +73,8 @@ class TestNormalizeContentYaml:
 
     def test_yaml_reserialized_canonical(self, service):
         path = Path("config.yaml")
-        a = service._normalize_content("b: 1\na: 2\n", path)
-        b = service._normalize_content("a: 2\nb: 1\n", path)
+        a = content_diff.normalize_content("b: 1\na: 2\n", path)
+        b = content_diff.normalize_content("a: 2\nb: 1\n", path)
         assert a == b
         assert a == yaml.dump(
             {"a": 2, "b": 1}, default_flow_style=False, sort_keys=True
@@ -79,7 +82,7 @@ class TestNormalizeContentYaml:
 
     def test_yml_suffix_also_handled(self, service):
         path = Path("config.yml")
-        result = service._normalize_content("a: 1\nb: 2\n", path)
+        result = content_diff.normalize_content("a: 1\nb: 2\n", path)
         assert result == yaml.dump(
             {"a": 1, "b": 2}, default_flow_style=False, sort_keys=True
         )
@@ -89,7 +92,7 @@ class TestNormalizeContentYaml:
         # A YAML mapping with a value that also opens a flow-sequence is invalid;
         # this raises yaml.YAMLError and falls to text normalization.
         content = "key: [unclosed\n# a comment"
-        result = service._normalize_content(content, path)
+        result = content_diff.normalize_content(content, path)
         # Text path strips full-line '#' comments.
         assert "# a comment" not in result
 
@@ -107,7 +110,7 @@ class TestNormalizeContentYaml:
             'kept: "value # not a comment"\n'
             "stripped: value # trailing comment\n"
         )
-        result = service._normalize_content(content, path)
+        result = content_diff.normalize_content(content, path)
         assert 'kept: "value # not a comment"' in result
         assert "stripped: value" in result
         assert "trailing comment" not in result
@@ -118,17 +121,17 @@ class TestNormalizeContentText:
 
     def test_full_line_hash_comment_stripped(self, service):
         path = Path("script.txt")
-        result = service._normalize_content("# comment\nreal line\n", path)
+        result = content_diff.normalize_content("# comment\nreal line\n", path)
         assert result == "real line"
 
     def test_double_slash_comment_stripped(self, service):
         path = Path("code.txt")
-        result = service._normalize_content("// comment\nkeep me\n", path)
+        result = content_diff.normalize_content("// comment\nkeep me\n", path)
         assert result == "keep me"
 
     def test_c_style_single_line_block_removed(self, service):
         path = Path("code.txt")
-        result = service._normalize_content("before /* mid */ after\n", path)
+        result = content_diff.normalize_content("before /* mid */ after\n", path)
         # Comment span removed; the resulting double space collapses to one via
         # the final " ".join(line.split()) whitespace normalization.
         assert result == "before after"
@@ -136,7 +139,7 @@ class TestNormalizeContentText:
     def test_c_style_multiline_block_removed(self, service):
         path = Path("code.txt")
         content = "keep1\n/* start\nstill comment\nend */ tail\nkeep2\n"
-        result = service._normalize_content(content, path)
+        result = content_diff.normalize_content(content, path)
         lines = result.split("\n")
         assert "keep1" in lines
         assert "tail" in lines
@@ -146,7 +149,7 @@ class TestNormalizeContentText:
 
     def test_html_comment_full_line_stripped(self, service):
         path = Path("page.txt")
-        result = service._normalize_content("<!-- comment -->\nkeep\n", path)
+        result = content_diff.normalize_content("<!-- comment -->\nkeep\n", path)
         assert result == "keep"
 
     def test_whitespace_normalized_and_blank_lines_dropped(self, service):
@@ -154,12 +157,12 @@ class TestNormalizeContentText:
         # Internal runs of whitespace collapse to a single space; blank lines drop;
         # trailing whitespace stripped.
         content = "a    b\tc   \n\n   \n  d  \n"
-        result = service._normalize_content(content, path)
+        result = content_diff.normalize_content(content, path)
         assert result == "a b c\nd"
 
     def test_no_file_path_uses_text_normalization(self, service):
         # With file_path=None the JSON/YAML branches are skipped entirely.
-        result = service._normalize_content("# c\nkeep\n", None)
+        result = content_diff.normalize_content("# c\nkeep\n", None)
         assert result == "keep"
 
     def test_inline_hash_not_stripped_for_non_yaml(self, service):
@@ -169,7 +172,7 @@ class TestNormalizeContentText:
         asymmetry between YAML and generic text handling.
         """
         path = Path("data.txt")
-        result = service._normalize_content("value # inline\n", path)
+        result = content_diff.normalize_content("value # inline\n", path)
         assert result == "value # inline"
 
 
@@ -183,16 +186,16 @@ class TestIsBinary:
     def test_nul_byte_is_binary(self, service, tmp_path):
         p = tmp_path / "bin.dat"
         p.write_bytes(b"abc\x00def")
-        assert service._is_binary(p) is True
+        assert content_diff.is_binary(p) is True
 
     def test_utf8_text_not_binary(self, service, tmp_path):
         p = tmp_path / "text.txt"
         p.write_text("hello world\nsecond line\n")
-        assert service._is_binary(p) is False
+        assert content_diff.is_binary(p) is False
 
     def test_unreadable_path_returns_false(self, service, tmp_path):
         # Missing file -> open() raises -> documented fail behavior is False.
-        assert service._is_binary(tmp_path / "does-not-exist") is False
+        assert content_diff.is_binary(tmp_path / "does-not-exist") is False
 
 
 # ---------------------------------------------------------------------------
@@ -208,21 +211,21 @@ class TestCompareFileContent:
         f1.write_text("same\n")
         f2.write_text("same\n")
         # Returns True only when files differ; identical -> False.
-        assert service._files_differ(f1, f2) is False
+        assert content_diff.files_differ(f1, f2) is False
 
     def test_identical_after_normalization_no_change(self, service, tmp_path):
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
         f1.write_text("# comment\nvalue\n")
         f2.write_text("value\n")
-        assert service._files_differ(f1, f2) is False
+        assert content_diff.files_differ(f1, f2) is False
 
     def test_differing_files_changed(self, service, tmp_path):
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
         f1.write_text("one\n")
         f2.write_text("two\n")
-        assert service._files_differ(f1, f2) is True
+        assert content_diff.files_differ(f1, f2) is True
 
     def test_unreadable_file_failsafe_changed(self, service, tmp_path):
         f1 = tmp_path / "a.txt"
@@ -231,21 +234,21 @@ class TestCompareFileContent:
         f2.write_text("data\n")
         # Documented fail-safe: any error during comparison -> treated as changed.
         with patch.object(Path, "read_text", side_effect=OSError("boom")):
-            assert service._files_differ(f1, f2) is True
+            assert content_diff.files_differ(f1, f2) is True
 
     def test_binary_files_compared_by_bytes(self, service, tmp_path):
         f1 = tmp_path / "a.bin"
         f2 = tmp_path / "b.bin"
         f1.write_bytes(b"\x00\x01\x02")
         f2.write_bytes(b"\x00\x01\x03")
-        assert service._files_differ(f1, f2) is True
+        assert content_diff.files_differ(f1, f2) is True
 
     def test_identical_binary_files_no_change(self, service, tmp_path):
         f1 = tmp_path / "a.bin"
         f2 = tmp_path / "b.bin"
         f1.write_bytes(b"\x00\x01\x02")
         f2.write_bytes(b"\x00\x01\x02")
-        assert service._files_differ(f1, f2) is False
+        assert content_diff.files_differ(f1, f2) is False
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +258,7 @@ class TestCompareFileContent:
 
 class TestFilterIgnoredFiles:
     def test_filters_each_pattern_class(self, service):
-        survivors = service._filter_ignored_files(
+        survivors = content_diff.filter_ignored_files(
             {"foo.md", "bar.log", "x.swp", "real.yaml"}
         )
         assert survivors == {"real.yaml"}
@@ -275,11 +278,13 @@ class TestFilterIgnoredFiles:
             "README.md",
             "run.log",
         }
-        assert service._filter_ignored_files(ignored) == set()
+        assert content_diff.filter_ignored_files(ignored) == set()
 
     def test_matches_basename_only(self, service):
         # Pattern match is on Path(...).name, so directory prefixes don't matter.
-        result = service._filter_ignored_files({"dir/sub/notes.md", "dir/keep.yaml"})
+        result = content_diff.filter_ignored_files(
+            {"dir/sub/notes.md", "dir/keep.yaml"}
+        )
         assert result == {"dir/keep.yaml"}
 
 
@@ -635,25 +640,29 @@ class TestGetWorkspaceForContext:
 
 
 class TestRefExists:
-    def test_ref_exists_rejects_unsafe_ref_without_repo_call(self, service):
-        # Unsafe refs are rejected before any git access.
-        service._get_repo = MagicMock()
-        assert service._ref_exists("main;rm -rf /") is False
-        service._get_repo.assert_not_called()
+    @pytest.fixture
+    def extractor(self):
+        return GitTreeExtractor(logging.getLogger(__name__))
 
-    def test_ref_exists_true_when_commit_resolves(self, service):
+    def test_ref_exists_rejects_unsafe_ref_without_repo_call(self, extractor):
+        # Unsafe refs are rejected before any git access.
+        extractor._get_repo = MagicMock()
+        assert extractor._ref_exists("main;rm -rf /") is False
+        extractor._get_repo.assert_not_called()
+
+    def test_ref_exists_true_when_commit_resolves(self, extractor):
         repo = MagicMock()
         repo.commit.return_value = MagicMock()
-        service._get_repo = MagicMock(return_value=repo)
-        assert service._ref_exists("main") is True
+        extractor._get_repo = MagicMock(return_value=repo)
+        assert extractor._ref_exists("main") is True
         repo.commit.assert_called_once_with("main")
 
-    def test_ref_exists_false_when_no_repo(self, service):
-        service._get_repo = MagicMock(return_value=None)
-        assert service._ref_exists("main") is False
+    def test_ref_exists_false_when_no_repo(self, extractor):
+        extractor._get_repo = MagicMock(return_value=None)
+        assert extractor._ref_exists("main") is False
 
-    def test_ref_exists_false_on_value_error(self, service):
+    def test_ref_exists_false_on_value_error(self, extractor):
         repo = MagicMock()
         repo.commit.side_effect = ValueError("bad name")
-        service._get_repo = MagicMock(return_value=repo)
-        assert service._ref_exists("nope") is False
+        extractor._get_repo = MagicMock(return_value=repo)
+        assert extractor._ref_exists("nope") is False

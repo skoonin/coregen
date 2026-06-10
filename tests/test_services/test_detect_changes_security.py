@@ -1,23 +1,24 @@
-"""Unit tests for DetectChangesService security-critical methods.
+"""Unit tests for GitTreeExtractor security-critical methods.
 
 These tests focus on security validation methods that prevent:
 - Git command injection attacks via unsafe refs
 - Tar path traversal attacks during base branch extraction
 """
 
+import logging
 import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from coregen.services.detect_changes.detect_changes_service import DetectChangesService
+from coregen.services.detect_changes.git_tree_extractor import GitTreeExtractor
 
 
 @pytest.fixture
 def detect_changes_service():
-    """Create a DetectChangesService instance for testing."""
-    return DetectChangesService()
+    """Create a GitTreeExtractor instance for testing."""
+    return GitTreeExtractor(logging.getLogger(__name__))
 
 
 class TestGitRefSecurity:

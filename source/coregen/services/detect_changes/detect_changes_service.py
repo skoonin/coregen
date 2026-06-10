@@ -37,15 +37,12 @@ Component Sorting:
 """
 
 import copy
-import subprocess
-import tarfile
 from pathlib import Path
 from typing import Any
 
-from git import Repo
-from git.exc import BadName, GitCommandError, GitError, InvalidGitRepositoryError
-
 from coregen.common.component_sorter_service import ComponentSorterService
+from coregen.services.detect_changes import content_diff
+from coregen.services.detect_changes.git_tree_extractor import GitTreeExtractor
 from coregen.services.detect_changes.models import (
     ChangeReason,
     ChangeStatus,
@@ -101,25 +98,6 @@ class DetectChangesService(ServicesBase):
         else:
             self._gen_kwargs["quiet"] = True
 
-        # Define ignore patterns for files that should be skipped during comparison
-        # These are common files that don't affect functionality and don't trigger deployments
-        self._ignore_patterns = [
-            ".DS_Store",
-            ".gitkeep",
-            "*.swp",
-            "*.swo",
-            "*~",
-            ".#*",
-            "#*#",
-            "Thumbs.db",
-            "desktop.ini",
-            "*.md",
-            "*.log",
-        ]
-
-        # Initialize git repository once (lazy loading)
-        self._repo: Repo | None = None
-
     def detect_changes(
         self,
         base_branch: str = "main",
@@ -146,8 +124,12 @@ class DetectChangesService(ServicesBase):
             ValueError: If git validation fails or repository state is invalid
             RuntimeError: If git operations fail
         """
+        # One extractor owns the cached Repo for both validation and extraction;
+        # closed in the finally block to release git file handles/subprocesses.
+        git_extractor = GitTreeExtractor(self.logger)
+
         # Step 0: Validate git repository and requirements
-        repo_root, actual_base_ref = self._validate_git_repository(base_branch, verbose)
+        repo_root, actual_base_ref = git_extractor.validate(base_branch)
         self.logger.debug(
             f"Git validation passed, repo root: {repo_root}, using ref: {actual_base_ref}"
         )
@@ -233,15 +215,19 @@ class DetectChangesService(ServicesBase):
             if verbose:
                 self.logger.debug(f"Extracting base branch files: {base_branch}")
 
-            self._extract_base_branch(base_branch, temp_extracted, verbose)
+            git_extractor.extract(base_branch, temp_extracted, verbose)
             self.logger.debug(f"Base branch extracted to: {temp_extracted}")
 
             # Step 3: Generate from extracted base branch files
             if verbose:
                 self.logger.debug("Generating from base branch files")
 
-            # Create a new GenerateService instance for base branch with modified config path
+            # Create a new GenerateService instance for base branch with modified
+            # config path. Isolate global_options once so this derived dict never
+            # shares the caller's mutable GlobalOptions object.
             base_kwargs = self._gen_kwargs.copy()
+            if "global_options" in base_kwargs:
+                base_kwargs["global_options"] = copy.copy(base_kwargs["global_options"])
 
             # Derive the base-branch config path by re-rooting the live config path
             # under the extracted tree. resolved_config is absolute and under repo_root.
@@ -385,6 +371,9 @@ class DetectChangesService(ServicesBase):
             return result
 
         finally:
+            # Release git file handles/subprocesses held by the cached Repo.
+            git_extractor.close()
+
             # Clean up temp directories unless keep_generated is True
             if not keep_generated and output_dir is None:
                 try:
@@ -401,36 +390,6 @@ class DetectChangesService(ServicesBase):
                             self.logger.debug("Removed empty .cgtmp directory")
                 except Exception as e:
                     self.logger.warning(f"Failed to clean up temp directory: {e}")
-
-    def _safe_extract(self, tar: tarfile.TarFile, path: Path) -> None:
-        """Safely extract tar members, preventing path traversal attacks.
-
-        Args:
-            tar: TarFile object to extract from
-            path: Destination path
-
-        Raises:
-            RuntimeError: If unsafe paths are detected
-        """
-        base = path.resolve()
-
-        for member in tar:
-            member_path = (path / member.name).resolve()
-            # Structural containment, not string prefix: startswith() treats a
-            # sibling like "<base>_evil" as inside "<base>".
-            if member_path != base and base not in member_path.parents:
-                raise RuntimeError(f"Unsafe path in archive: {member.name}")
-            if member.issym() or member.islnk():
-                self.logger.warning(
-                    f"Skipping symlink/hardlink in archive: {member.name}"
-                )
-                continue
-            if not (member.isfile() or member.isdir()):
-                self.logger.warning(
-                    f"Skipping non-regular file in archive: {member.name}"
-                )
-                continue
-            tar.extract(member, path)
 
     def _resolve_live_config_path(
         self, config_file: Any, repo_root: Path
@@ -527,86 +486,6 @@ class DetectChangesService(ServicesBase):
             return default_path
 
         return None
-
-    def _extract_base_branch(
-        self, base_branch: str, output_dir: Path, verbose: bool = False
-    ) -> None:
-        """Extract base branch files using git archive.
-
-        Args:
-            base_branch: Base branch to extract
-            output_dir: Directory to extract files to
-            verbose: Show detailed progress
-
-        Raises:
-            RuntimeError: If extraction fails
-        """
-        if verbose:
-            self.logger.debug(
-                f"Extracting files from ref '{base_branch}' to {output_dir}"
-            )
-
-        # Create output directory
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # Use cached repository instance
-            repo = self._get_repo()
-
-            # Stream git archive directly to tar extraction (no temp file)
-            proc = subprocess.Popen(
-                ["git", "archive", base_branch],
-                cwd=repo.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            try:
-                # Open tar stream and safely extract
-                # Note: mode="r|" for streaming tar without seeking
-                with tarfile.open(fileobj=proc.stdout, mode="r|") as tar:
-                    self._safe_extract(tar, output_dir)
-
-                # Wait for git archive to complete and check return code
-                stderr = proc.stderr.read() if proc.stderr else b""
-                rc = proc.wait()
-
-                if rc != 0:
-                    error_msg = (
-                        stderr.decode("utf-8", errors="replace")
-                        if stderr
-                        else "Unknown error"
-                    )
-                    raise RuntimeError(
-                        f"git archive failed with exit code {rc}: {error_msg}"
-                    )
-
-                if stderr and verbose:
-                    self.logger.debug(
-                        f"Git archive stderr: {stderr.decode('utf-8', errors='replace')}"
-                    )
-
-                self.logger.debug(
-                    f"Successfully extracted {base_branch} to {output_dir}"
-                )
-
-            except Exception:
-                # Kill the process if it's still running
-                if proc.poll() is None:
-                    proc.kill()
-                    proc.wait()
-                raise
-
-        except subprocess.SubprocessError as e:
-            self.logger.error(f"Failed to extract base branch: {e}")
-            raise RuntimeError(
-                f"Failed to extract files from ref '{base_branch}': {e}"
-            ) from e
-        except Exception as e:
-            self.logger.error(f"Failed to extract base branch: {e}")
-            raise RuntimeError(
-                f"Failed to extract files from ref '{base_branch}': {e}"
-            ) from e
 
     def _generate_and_scan(
         self,
@@ -882,22 +761,6 @@ class DetectChangesService(ServicesBase):
             )
         return None
 
-    def _is_binary(self, path: Path) -> bool:
-        """Check if a file appears to be binary.
-
-        Args:
-            path: Path to file to check
-
-        Returns:
-            True if file appears to be binary
-        """
-        try:
-            with open(path, "rb") as f:
-                chunk = f.read(4096)
-                return b"\0" in chunk
-        except Exception:
-            return False
-
     def _has_content_changed(
         self,
         component_key: str,
@@ -941,8 +804,8 @@ class DetectChangesService(ServicesBase):
         base_files = set(base_comp.get("files", []))
 
         # Filter out ignored files
-        current_files = self._filter_ignored_files(current_files)
-        base_files = self._filter_ignored_files(base_files)
+        current_files = content_diff.filter_ignored_files(current_files)
+        base_files = content_diff.filter_ignored_files(base_files)
 
         # If file lists differ, content has changed
         if current_files != base_files:
@@ -958,233 +821,10 @@ class DetectChangesService(ServicesBase):
                 return True
 
             # Compare file contents (ignoring whitespace and comments)
-            if self._files_differ(current_file, base_file):
+            if content_diff.files_differ(current_file, base_file):
                 return True
 
         return False
-
-    def _files_differ(self, file1: Path, file2: Path) -> bool:
-        """Compare two files ignoring whitespace and comments.
-
-        Comment syntaxes handled:
-        - Python/Hash (#)
-        - C/C++ (// and /* */)
-        - Shell (## and #)
-        - HTML/XML (<!-- -->)
-
-        Args:
-            file1: First file path
-            file2: Second file path
-
-        Returns:
-            True if files are different (content has changed)
-        """
-        try:
-            # Check if files are binary
-            if self._is_binary(file1) or self._is_binary(file2):
-                # For binary files, compare bytes directly
-                return file1.read_bytes() != file2.read_bytes()
-
-            # For text files, normalize and compare (pass file path for type detection)
-            content1 = self._normalize_content(file1.read_text(), file1)
-            content2 = self._normalize_content(file2.read_text(), file2)
-            return content1 != content2
-        except Exception as e:
-            self.logger.warning(f"Error comparing files {file1} and {file2}: {e}")
-            # If we can't compare, assume they're different
-            return True
-
-    def _normalize_content(self, content: str, file_path: Path | None = None) -> str:
-        """Normalize content for comparison.
-
-        For JSON/YAML files, parses and re-serializes to eliminate formatting differences.
-        For other files, removes comments and normalizes whitespace.
-
-        Args:
-            content: File content to normalize
-            file_path: Optional file path to determine file type
-
-        Returns:
-            Normalized content
-        """
-        structured = self._normalize_structured(content, file_path)
-        if structured is not None:
-            return structured
-        return self._normalize_text(content, file_path)
-
-    def _normalize_structured(self, content: str, file_path: Path | None) -> str | None:
-        """Canonicalize JSON/YAML content by parse-and-re-serialize.
-
-        Returns the canonical form, or None when the file is not JSON/YAML or
-        parsing fails (caller falls back to text normalization).
-
-        Args:
-            content: File content to normalize
-            file_path: File path used to detect JSON/YAML by suffix
-
-        Returns:
-            Canonical content string, or None to fall through to text handling
-        """
-        if not file_path:
-            return None
-
-        suffix = file_path.suffix.lower()
-
-        # Handle JSON files - parse and re-serialize with sorted keys
-        if suffix == ".json":
-            try:
-                import json
-
-                data = json.loads(content)
-                # Re-serialize with sorted keys and consistent formatting
-                return json.dumps(data, sort_keys=True, indent=2)
-            except (json.JSONDecodeError, ValueError):
-                # If parsing fails, fall through to normal processing
-                self.logger.debug(
-                    f"Failed to parse {file_path} as JSON, using text normalization"
-                )
-
-        # Handle YAML files - parse and re-serialize canonically
-        elif suffix in [".yaml", ".yml"]:
-            try:
-                import yaml
-
-                data = yaml.safe_load(content)
-                # Re-serialize with consistent formatting
-                return yaml.dump(data, default_flow_style=False, sort_keys=True)
-            except yaml.YAMLError:
-                # If parsing fails, fall through to normal processing
-                self.logger.debug(
-                    f"Failed to parse {file_path} as YAML, using text normalization"
-                )
-
-        return None
-
-    def _normalize_text(self, content: str, file_path: Path | None = None) -> str:
-        """Normalize free-form text by stripping comments and whitespace.
-
-        Handles Python/Hash, C/C++, shell, and HTML/XML comment syntaxes, plus
-        YAML inline comments when file_path identifies a YAML file.
-
-        Args:
-            content: File content to normalize
-            file_path: Optional file path; enables YAML inline-comment stripping
-
-        Returns:
-            Normalized content
-        """
-        lines = []
-        in_multiline_comment = False
-
-        for line in content.splitlines():
-            # Strip trailing whitespace but preserve indentation for now
-            line = line.rstrip()
-
-            # Skip empty lines
-            if not line or line.isspace():
-                continue
-
-            # Handle C-style multi-line comments more carefully
-            if in_multiline_comment:
-                # Check if comment ends on this line
-                if "*/" in line:
-                    in_multiline_comment = False
-                    # Keep the part after the comment ends
-                    _, _, after = line.partition("*/")
-                    line = after.strip()
-                    if not line:
-                        continue
-                else:
-                    # Still in multiline comment, skip entire line
-                    continue
-
-            # Check for multiline comment start
-            if "/*" in line:
-                # Handle single-line /* ... */ comments
-                if "*/" in line:
-                    # Remove just the comment part, keep rest of line
-                    before, _, rest = line.partition("/*")
-                    _, _, after = rest.partition("*/")
-                    line = before + after
-                    line = line.strip()
-                    if not line:
-                        continue
-                else:
-                    # Comment continues to next line
-                    in_multiline_comment = True
-                    # Keep the part before the comment
-                    before, _, _ = line.partition("/*")
-                    line = before.strip()
-                    if not line:
-                        continue
-
-            # Strip inline comments for YAML files (but not inside quoted strings)
-            # This handles comments like "key: value # comment"
-            if file_path and file_path.suffix.lower() in [".yaml", ".yml"]:
-                # Simple approach: if line contains # not inside quotes, remove from # onward
-                if "#" in line:
-                    # Check if # is inside quotes (simple check)
-                    in_single_quote = False
-                    in_double_quote = False
-                    for i, char in enumerate(line):
-                        if char == "'" and (i == 0 or line[i - 1] != "\\"):
-                            in_single_quote = not in_single_quote
-                        elif char == '"' and (i == 0 or line[i - 1] != "\\"):
-                            in_double_quote = not in_double_quote
-                        elif (
-                            char == "#" and not in_single_quote and not in_double_quote
-                        ):
-                            # Found a comment outside quotes
-                            line = line[:i].rstrip()
-                            break
-
-            # Handle line-starting comments
-            line_stripped = line.lstrip()
-            if line_stripped.startswith("#") or line_stripped.startswith("//"):
-                continue
-
-            # HTML/XML comments (simple handling)
-            if line_stripped.startswith("<!--") and line_stripped.endswith("-->"):
-                continue
-
-            # Normalize remaining whitespace
-            line = " ".join(line.split())
-
-            # Add normalized line
-            if line:
-                lines.append(line)
-
-        return "\n".join(lines)
-
-    def _filter_ignored_files(self, file_paths: set[str]) -> set[str]:
-        """Filter out files that match ignore patterns.
-
-        Args:
-            file_paths: Set of file paths to filter
-
-        Returns:
-            Filtered set of file paths with ignored files removed
-        """
-        import fnmatch
-
-        filtered = set()
-        for file_path in file_paths:
-            file_name = Path(file_path).name
-
-            # Check if file matches any ignore pattern
-            should_ignore = False
-            for pattern in self._ignore_patterns:
-                if fnmatch.fnmatch(file_name, pattern):
-                    should_ignore = True
-                    self.logger.debug(
-                        f"Ignoring file {file_path} (matches pattern {pattern})"
-                    )
-                    break
-
-            if not should_ignore:
-                filtered.add(file_path)
-
-        return filtered
 
     def _create_component_change(
         self,
@@ -1470,148 +1110,3 @@ class DetectChangesService(ServicesBase):
             result.total_unchanged = 0
 
         return result
-
-    def _validate_git_repository(
-        self, base_branch: str, verbose: bool = False
-    ) -> tuple[Path, str]:
-        """Validate git repository state and requirements.
-
-        Args:
-            base_branch: Base branch to validate
-            verbose: Show detailed progress
-
-        Returns:
-            Tuple of (repository root path, actual base ref to use)
-
-        Raises:
-            ValueError: If validation fails
-        """
-        # Check if we're in a git repository
-        repo = self._get_repo()
-        if not repo:
-            raise ValueError(
-                "Not in a git repository. The detect-changes command must be run from within a git repository."
-            )
-
-        repo_root = Path(repo.working_dir)
-
-        # Note: git archive has been available since git 1.4.3, so no version check needed
-        # It's much more widely available than worktree (which requires 2.5+)
-
-        # Validate base ref exists and is accessible
-        actual_base_ref = base_branch
-        if not self._ref_exists(base_branch):
-            # Try origin/main as fallback if main doesn't exist
-            if base_branch == "main" and self._ref_exists("origin/main"):
-                actual_base_ref = "origin/main"
-                self.logger.info(
-                    f"Using '{actual_base_ref}' as base branch since 'main' doesn't exist locally"
-                )
-            else:
-                raise ValueError(
-                    f"Base ref '{base_branch}' does not exist or is not accessible."
-                )
-
-        self.logger.debug(
-            f"Git repository validation successful: repo_root={repo_root}, base_branch={actual_base_ref}"
-        )
-
-        return repo_root, actual_base_ref
-
-    def _get_repo(self) -> Repo | None:
-        """Get or create the git repository instance.
-
-        This method implements lazy loading and caching of the repository object
-        to avoid multiple lookups.
-
-        Returns:
-            Repo instance, or None if not in a git repository
-        """
-        if self._repo is None:
-            try:
-                self._repo = Repo(search_parent_directories=True)
-            except InvalidGitRepositoryError:
-                return None
-            except GitError:
-                return None
-        return self._repo
-
-    def _is_safe_git_ref(self, ref: str) -> bool:
-        """Validate that a git ref is safe from injection attacks.
-
-        Args:
-            ref: Git ref to validate
-
-        Returns:
-            True if the ref appears safe
-        """
-        if not ref:
-            return False
-
-        # Check for dangerous patterns that could lead to command injection
-        dangerous_patterns = [
-            "..",  # Path traversal
-            ";",  # Command separator
-            "|",  # Pipe
-            "&",  # Background/command chaining
-            "`",  # Command substitution
-            "$(",  # Command substitution
-            "$((",  # Arithmetic substitution
-            ">",  # Redirect output
-            "<",  # Redirect input
-            "\\",  # Escape character
-            "\n",  # Newline
-            "\r",  # Carriage return
-            "\0",  # Null byte
-            "--",  # Could be interpreted as option (except for legitimate use)
-        ]
-
-        # Check for dangerous patterns
-        for pattern in dangerous_patterns:
-            if pattern in ref:
-                self.logger.warning(f"Unsafe git ref rejected: contains '{pattern}'")
-                return False
-
-        # Check if ref starts with dash (could be interpreted as option)
-        if ref.startswith("-"):
-            self.logger.warning("Unsafe git ref rejected: starts with '-'")
-            return False
-
-        # Additional check: ref should not contain control characters
-        if any(ord(c) < 32 for c in ref):
-            self.logger.warning("Unsafe git ref rejected: contains control characters")
-            return False
-
-        return True
-
-    def _ref_exists(self, ref: str) -> bool:
-        """Check if a git ref exists and is accessible.
-
-        This handles local branches, remote branches (origin/main), tags, and SHAs.
-
-        Args:
-            ref: Git ref to check (branch, tag, SHA, etc.)
-
-        Returns:
-            True if ref exists and is accessible
-        """
-        try:
-            # Validate ref name for security
-            if not self._is_safe_git_ref(ref):
-                return False
-
-            repo = self._get_repo()
-            if not repo:
-                return False
-            # This will raise if ref doesn't resolve
-            _ = repo.commit(ref)
-            return True
-        except (BadName, ValueError):
-            # Ref simply doesn't exist - expected
-            return False
-        except GitCommandError as e:
-            self.logger.error(f"Git command failed checking ref '{ref}': {e}")
-            raise
-        except Exception as e:
-            self.logger.error(f"Unexpected error checking ref '{ref}': {e}")
-            raise
