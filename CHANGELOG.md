@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Changed
+
+- The `--filter` option's environment variable is now `CG_FILTERS` (parameter renamed from `filter` to `filters`); `CG_FILTER` no longer applies (#16)
+
+### Fixed
+
+- Explicit `--file-action` on the command line now wins over the `CG_FILE_ACTION` environment variable (#15)
+- Generation errors are now always reported with a message instead of failing silently in some paths (#16)
+- Component dependency paths no longer have to exist on disk at validation time (#16)
+- Active workspaces/contexts are no longer dropped from `generate`/`get` output when all of their children are inactive (#27)
+
+### Security
+
+- Output, commit, and archive paths are contained to their intended directories; archive extraction rejects entries that escape the destination (#18)
+
 ## v1.0.6 - 2025-12-02
 
 ### Added

@@ -345,16 +345,9 @@ def init_service_setup():
     """Set up test fixtures for ConfigInitService tests."""
     # Create mock objects
     mock_file_manager = MagicMock(spec=FileManager)
-    mock_file_manager.write_yaml = (
-        MagicMock()
-    )  # Add this for initialize_repository method
     mock_console = MagicMock(spec=Console)
 
-    # Create a mock config provider for initialize_repository
     mock_config_provider = MagicMock(spec=ConfigurationProvider)
-    mock_config_provider.create_config = MagicMock(
-        return_value={"version": "1.0", "workspaces": []}
-    )
 
     # Mock workspace initializer
     mock_workspace_initializer = MagicMock(spec=WorkspaceInitializer)
@@ -378,36 +371,6 @@ def init_service_setup():
 
 class TestConfigInitService:
     """Test the ConfigInitService class."""
-
-    def test_initialize_repository_new_file(self, init_service_setup):
-        """Test initializing a new config file."""
-        service = init_service_setup["service"]
-        mock_file_manager = init_service_setup["mock_file_manager"]
-        # Mock Path.exists to return False (file doesn't exist)
-        with patch("pathlib.Path.exists", return_value=False):
-            # Call initialize_repository
-            result_path = service.initialize_repository(
-                config_file_path=Path("config.yaml")
-            )
-
-        # Verify file was written
-        mock_file_manager.write_yaml.assert_called_once()
-        assert result_path == Path("config.yaml")
-
-    def test_initialize_repository_existing_file(self, init_service_setup):
-        """Test initializing when file exists."""
-        service = init_service_setup["service"]
-        mock_file_manager = init_service_setup["mock_file_manager"]
-        # Mock Path.exists to return True (file exists)
-        with patch("pathlib.Path.exists", return_value=True):
-            # Call initialize_repository
-            result_path = service.initialize_repository(
-                config_file_path=Path("config.yaml")
-            )
-
-        # Verify file was not written
-        assert not mock_file_manager.write_yaml.called
-        assert result_path == Path("config.yaml")
 
     def test_initialize_config_success(self, init_service_setup):
         """Test initializing configuration from existing file."""

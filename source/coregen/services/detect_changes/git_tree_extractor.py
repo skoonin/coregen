@@ -225,6 +225,14 @@ class GitTreeExtractor:
     def _is_safe_git_ref(self, ref: str) -> bool:
         """Validate that a git ref is safe from injection attacks.
 
+        The ref only ever reaches GitPython's repo.commit() and a list-args
+        subprocess (never a shell), so the blocklist is stricter than the
+        execution path requires. It is kept deliberately: the rejection set is
+        the contract pinned by test_detect_changes_security.py, and it also
+        excludes range/option-like inputs ('..', leading '-') that are not
+        valid single refs for this tool. Loosening it needs product sign-off
+        (audit finding DC6).
+
         Args:
             ref: Git ref to validate
 

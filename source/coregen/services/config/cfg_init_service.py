@@ -1,8 +1,8 @@
 """
 Configuration initialization service.
 
-This module provides the service class for initializing configuration repositories
-and creating initial configuration files.
+This module provides the service class that validates an existing configuration
+file and creates the directories it requires.
 """
 
 from dataclasses import dataclass, field
@@ -25,68 +25,7 @@ class InitResult:
 
 
 class ConfigInitService(ServicesBase):
-    """Service for initializing configuration repositories.
-
-    This service handles:
-    1. Creating initial configuration files
-    2. Setting up directory structure for new configuration repositories
-    3. Initializing workspaces with default settings
-    """
-
-    def initialize_repository(
-        self,
-        config_file_path: Path | None = None,
-        custom_values: dict | None = None,
-    ) -> Path:
-        """Initialize a new configuration repository.
-
-        Args:
-            config_file_path: Optional path to the configuration file.
-                              If not provided, a default path will be used.
-            custom_values: Custom values to override defaults
-
-        Returns:
-            Path: Path to the created configuration file
-        """
-        self.logger.info("Initializing configuration repository")
-
-        # Determine configuration file path
-        if not config_file_path:
-            config_file_path = Path.cwd() / ".cgconfig.yaml"
-            self.logger.debug(f"Using default config file path: {config_file_path}")
-        else:
-            self.logger.debug(f"Using provided config file path: {config_file_path}")
-
-        self.logger.debug(f"Using configuration file path: {config_file_path}")
-
-        # Check if configuration file already exists
-        if config_file_path.exists():
-            self.logger.warning(
-                f"Configuration file already exists at {config_file_path}"
-            )
-            return config_file_path
-
-        # Create configuration file with defaults
-        config_dict = self.config_provider.create_config(
-            custom_properties=custom_values or {}
-        )
-
-        # Write configuration to file
-        # FIXME: FileManager has no write_yaml method -- this path raises
-        # AttributeError at runtime. initialize_repository is unreachable from the
-        # CLI (which calls initialize_config) and only exercised by mocked unit
-        # tests, so the bug is latent. Tracked separately; left as-is to avoid
-        # inventing new FileManager behavior during the type-only remediation.
-        self.file_manager.write_yaml(  # type: ignore[attr-defined]
-            config_file_path, config_dict, create_parent=True
-        )
-
-        self.logger.info(f"Created configuration file at {config_file_path}")
-
-        # Create basic directory structure
-        self._create_basic_structure(config_file_path)
-
-        return config_file_path
+    """Service that validates an existing config file and creates its required paths."""
 
     def initialize_config(self, config_path: Path) -> InitResult:
         """Initialize configuration and create required paths.
@@ -158,22 +97,3 @@ class ConfigInitService(ServicesBase):
             self.logger.error(f"Failed to create directories: {str(e)}")
             messages.append(f"[bold red]Failed to create directories:[/] {str(e)}")
             return InitResult(success=False, messages=messages)
-
-    def _create_basic_structure(self, config_file_path: Path) -> None:
-        """Create basic directory structure for the repository.
-
-        Args:
-            config_file_path: Path to the configuration file
-        """
-        self.logger.info("Creating basic directory structure")
-
-        # Load the created configuration
-        config = self.config_provider.load_config(config_file_path)
-
-        # Initialize workspace with basic structure
-        self.workspace_initializer.initialize_workspace(
-            config=config,
-            create_contexts=False,  # Only create the basic workspace structure
-        )
-
-        self.logger.info("Basic directory structure created successfully")

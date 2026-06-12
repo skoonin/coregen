@@ -99,8 +99,9 @@ class InactiveFilterService:
                 # Recursively filter the value
                 filtered_value = self._filter_data(value)
 
-                # Only include if there's content after filtering
-                if self._has_content(filtered_value):
+                # Keep active entries even when filtering emptied their children:
+                # an active parent must not vanish because all children are inactive
+                if filtered_value is not None:
                     filtered[key] = filtered_value
 
             return filtered
@@ -117,8 +118,8 @@ class InactiveFilterService:
                 # Recursively filter the item
                 filtered_item = self._filter_data(item)
 
-                # Only include if there's content after filtering
-                if self._has_content(filtered_item):
+                # Keep active items even when filtering emptied their children
+                if filtered_item is not None:
                     filtered_list.append(filtered_item)
 
             return filtered_list
@@ -156,19 +157,6 @@ class InactiveFilterService:
 
         # Default to active (not filtered)
         return False
-
-    def _has_content(self, data: Any) -> bool:
-        """Check if data has meaningful content after filtering.
-
-        Args:
-            data: Data to check
-
-        Returns:
-            True if data has content, False if it's empty
-        """
-        if isinstance(data, (dict, list)):
-            return len(data) > 0
-        return data is not None
 
     def _get_name(self, data: Any) -> str:
         """Extract name from data for logging purposes.

@@ -306,7 +306,8 @@ class TestPromptAction:
         # Act
         with (
             patch("sys.stdin.isatty", return_value=True),
-            patch("builtins.input", side_effect=lambda _: time.sleep(0.2)),
+            # 10x the 0.1s timeout so loaded CI runners cannot flake the race
+            patch("builtins.input", side_effect=lambda _: time.sleep(1.0)),
         ):
             result = file_manager._prompt_action(test_file)
 
