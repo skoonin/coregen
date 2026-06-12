@@ -5,7 +5,6 @@ This module provides functionality to test pattern matching against configuratio
 and visualize matching results.
 """
 
-import fnmatch
 from typing import Any, TypedDict
 
 from coregen.common.inactive_filter_service import InactiveFilterService
@@ -594,17 +593,3 @@ class CheckPatternService(ServicesBase):
             parts.append(segment_info)
 
         return parts
-
-    def _explain_mismatch_logical(self, pattern: str, *potential_paths: str) -> str:
-        """Explain why a logical pattern didn't match any potential logical paths."""
-        reasons = []
-        for path in potential_paths:
-            if not fnmatch.fnmatch(path, pattern):
-                reasons.append(f"does not match '{path}'")
-        if not reasons:
-            return f"Pattern '{pattern}' did not match any standard logical forms."
-        return f"Pattern '{pattern}' {', '.join(reasons)}."
-
-    # REMOVED: _present_results method - services should not handle presentation
-    # The entire _present_results method has been removed as services should return data, not present it
-    # This method contained direct console.print() calls which violated the architecture pattern

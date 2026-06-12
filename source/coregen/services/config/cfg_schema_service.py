@@ -45,15 +45,6 @@ class ConfigSchemaService(ServicesBase):
         )
         self.logger.debug(f"Available schema types: {list(self._model_map.keys())}")
 
-    def get_schema_types(self) -> list[str]:
-        """
-        Get the list of valid schema types.
-
-        Returns:
-            List of valid schema types
-        """
-        return SCHEMA_TYPES
-
     def get_schema(self, schema_type: str) -> Any:
         """
         Generate schema for a specific model.

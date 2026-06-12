@@ -1068,11 +1068,9 @@ class DetectChangesService(ServicesBase):
         result.changes = filtered_changes
         result.deleted = filtered_deleted
 
-        # Update required_changes list if it exists
-        if hasattr(result, "required_changes"):
-            result.required_changes = [
-                c for c in result.required_changes if c in filtered_changes
-            ]
+        result.required_changes = [
+            c for c in result.required_changes if c in filtered_changes
+        ]
 
         return result
 

@@ -203,28 +203,6 @@ class Component(BaseModel):
             for dep in self.config.dependencies
         ]
 
-    def has_dependency(self, component_name: str) -> bool:
-        """Check if this component depends on another component.
-
-        Args:
-            component_name: Name of the component to check for
-
-        Returns:
-            True if this component depends on the specified component
-        """
-        # Access dependencies directly from the config object
-        return any(dep.name == component_name for dep in self.config.dependencies)
-
-    def add_dependency(self, dependency: ComponentDependency) -> None:
-        """Add a dependency to this component if it doesn't already exist.
-
-        Args:
-            dependency: The dependency to add
-        """
-        # Check if dependency already exists
-        if not any(dep.name == dependency.name for dep in self.config.dependencies):
-            self.config.dependencies.append(dependency)
-
     def sort_key(self) -> tuple[str, int, str]:
         """Return sort key for natural ordering.
 

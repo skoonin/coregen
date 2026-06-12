@@ -361,20 +361,6 @@ class Context(BaseModel):
         return self._sorted_components_cache
 
     @property
-    def sorted_components(self) -> dict[str, Component]:
-        """Get all components in sorted order.
-
-        Components are sorted by priority and dependencies using
-        the ComponentSorterService for consistent ordering.
-        Since components are immutable after initialization,
-        no caching is needed.
-
-        Returns:
-            Dictionary of component name to Component, in sorted order
-        """
-        return self.get_all_components()
-
-    @property
     def path(self) -> str:
         """Read-only property to get the context path."""
         return self.internal_path

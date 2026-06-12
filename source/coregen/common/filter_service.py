@@ -8,7 +8,6 @@ all services that need to filter workspaces, contexts, and components.
 import re
 from typing import Any
 
-from coregen.common.field_discovery import FieldDiscovery
 from coregen.common.logger import Logger
 from coregen.config_model.access import ConfigAccess
 
@@ -36,7 +35,6 @@ class FilterService:
         """
         self.config_access = config_access
         self.logger = logger or Logger(__name__)
-        self.field_discovery = FieldDiscovery(config_access, self.logger)
 
     def parse_filter_expression(self, filter_string: str) -> dict[str, Any]:
         """Parse a filter expression into a structured filter specification.

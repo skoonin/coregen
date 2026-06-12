@@ -17,7 +17,7 @@ from coregen.config_model.models.config import (  # Import CoregenConfig for res
 from coregen.config_model.processor import ConfigProcessor  # Import ConfigProcessor
 from coregen.config_model.provider import ConfigurationProvider
 from coregen.services.config.cfg_init_service import ConfigInitService
-from coregen.services.config.cfg_schema_service import ConfigSchemaService
+from coregen.services.config.cfg_schema_service import SCHEMA_TYPES, ConfigSchemaService
 from coregen.services.config.cfg_view_service import ConfigViewService
 
 
@@ -425,18 +425,6 @@ def schema_service_setup():
 class TestConfigSchemaService:
     """Test the ConfigSchemaService class."""
 
-    def test_get_schema_types(self, schema_service_setup):
-        """Test getting schema types."""
-        service = schema_service_setup["service"]
-        # Get schema types
-        schema_types = service.get_schema_types()
-
-        # Verify schema types include the basic ones
-        assert "settings" in schema_types
-        assert "workspace" in schema_types
-        assert "context" in schema_types
-        assert "component" in schema_types
-
     @patch("coregen.services.config.cfg_schema_service.settings")
     def test_get_schema(self, mock_settings, schema_service_setup):
         """Test getting schema for a specific type."""
@@ -499,8 +487,8 @@ class TestConfigSchemaService:
 
             # Verify result structure
             assert "schema_data" in result
-            assert len(result["schema_data"]) == len(service.get_schema_types())
+            assert len(result["schema_data"]) == len(SCHEMA_TYPES)
             assert result["has_multiple"]
 
             # Verify get_schema was called for each type
-            assert mock_get_schema.call_count == len(service.get_schema_types())
+            assert mock_get_schema.call_count == len(SCHEMA_TYPES)
