@@ -159,7 +159,3 @@ class WorkspaceConfig(BaseModel):
             raise ValueError("Workspace name cannot be empty")
 
         return self
-
-    def resolve_context_type(self) -> str:
-        """Resolve the context type, using default if not specified."""
-        return self.context_type or settings.workspace.context_type

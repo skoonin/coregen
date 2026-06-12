@@ -163,29 +163,6 @@ class TestComponent:
         assert deps[1]["name"] == "dep2"
         assert deps[1]["path"] == "path/to/dep2"
 
-    def test_has_dependency(self) -> None:
-        """Should check if component has a dependency."""
-        component = Component(
-            name="test-component",
-            config={"dependencies": [{"name": "dep1"}, {"name": "dep2"}]},
-        )
-        assert component.has_dependency("dep1") is True
-        assert component.has_dependency("dep2") is True
-        assert component.has_dependency("dep3") is False
-
-    def test_add_dependency(self) -> None:
-        """Should add a dependency if it doesn't exist."""
-        component = Component(
-            name="test-component", config={"dependencies": [{"name": "dep1"}]}
-        )
-        component.add_dependency(ComponentDependency(name="dep2"))
-        assert len(component.config.dependencies) == 2
-        assert component.has_dependency("dep2") is True
-
-        # Adding existing dependency should not change anything
-        component.add_dependency(ComponentDependency(name="dep1"))
-        assert len(component.config.dependencies) == 2
-
     def test_validate_extra_fields(self) -> None:
         """Should validate extra fields in the component."""
         # Valid extra fields

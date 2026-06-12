@@ -339,31 +339,6 @@ class TestCheckPatternServiceAdditional:
         assert len(result[0]["wildcards"]) == 1
         assert result[0]["wildcards"][0]["type"] == "question_mark"
 
-    def test_explain_mismatch_logical(self, check_pattern_service_setup):
-        """Test the _explain_mismatch_logical method."""
-        # Unpack fixture
-        service = check_pattern_service_setup["service"]
-
-        # Test with a pattern and paths that don't match
-        pattern = "workspace/test-*"
-        paths = ["workspace/other", "context/test-context"]
-
-        result = service._explain_mismatch_logical(pattern, *paths)
-
-        # Verify the explanation contains the pattern and paths
-        assert "Pattern 'workspace/test-*'" in result
-        assert "does not match 'workspace/other'" in result
-        assert "does not match 'context/test-context'" in result
-
-        # Test with no paths
-        result = service._explain_mismatch_logical(pattern)
-
-        # Verify the explanation for no paths
-        assert (
-            "Pattern 'workspace/test-*' did not match any standard logical forms"
-            in result
-        )
-
     def test_get_workspace_for_context(self, check_pattern_service_setup):
         """Test the get_workspace_for_context method."""
         # Unpack fixture

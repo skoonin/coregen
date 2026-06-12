@@ -9,7 +9,6 @@ import glob
 import importlib
 import os
 import re
-from collections.abc import Generator
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -336,10 +335,6 @@ class PathResolver:
                 return False
             current = current[part]
         return True
-
-    def find_files_by_pattern(self, pattern: str | Path) -> Generator[Path, None, None]:
-        """Find files matching a glob pattern."""
-        yield from (Path(p) for p in glob.glob(str(pattern), recursive=True))
 
     def _resolve_custom_path(self, path: str) -> Path:
         """Resolve a custom path string to an absolute Path object."""

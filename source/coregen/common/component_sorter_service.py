@@ -30,23 +30,6 @@ class ComponentSorterService:
     Components are sorted by priority and name only - dependencies do NOT affect sort order.
     """
 
-    def __init__(self, config: Any = None, **kwargs: Any) -> None:
-        """Initialize service. Legacy kwargs are accepted for compatibility."""
-        # Accept legacy parameters for backward compatibility
-        if config:
-            # Extract values from config object if provided
-            self.none_priority_value = getattr(config, "none_priority_value", 999)
-            self.cycle_break_strategy = getattr(
-                config, "cycle_break_strategy", "stable"
-            )
-            # strict_validation is deprecated - all rules now run always
-            _ = getattr(config, "strict_validation", False)  # Accept but ignore
-        else:
-            self.none_priority_value = kwargs.get("none_priority_value", 999)
-            self.cycle_break_strategy = kwargs.get("cycle_break_strategy", "stable")
-            # strict_validation is deprecated - all rules now run always
-            _ = kwargs.get("strict_validation", False)  # Accept but ignore
-
     def sort_entities(
         self,
         entities: Sequence[EntityT],
@@ -287,10 +270,13 @@ class ComponentSorterService:
 
     def _component_sort_key(self, comp: Any) -> tuple:
         """Generate sort key for a component."""
+        # (is_none, priority) keeps null priority last for ANY numeric priority,
+        # avoiding a sentinel that collides with a real priority value
+        priority = self._get_priority(comp)
         return (
             self._get_field(comp, "workspace"),
             self._get_field(comp, "context"),
-            self._get_priority(comp) if self._get_priority(comp) is not None else 999,
+            (priority is None, priority if priority is not None else 0),
             self._get_field(comp, "name"),
         )
 

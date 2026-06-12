@@ -69,12 +69,3 @@ class TestWorkspaceConfig:
         with pytest.raises(ValidationError) as exc:
             WorkspaceConfig(name="test-workspace", output_dir="/absolute/path")
         assert "Path '/absolute/path' must be relative" in str(exc.value)
-
-    def test_resolve_context_type(self):
-        """Should resolve context type from settings if not specified."""
-        workspace = WorkspaceConfig(name="test-workspace")
-        assert workspace.resolve_context_type() == workspace.context_type
-
-        # With custom context_type
-        workspace = WorkspaceConfig(name="test-workspace", context_type="environment")
-        assert workspace.resolve_context_type() == "environment"

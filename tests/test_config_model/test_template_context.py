@@ -118,27 +118,6 @@ def test_to_dict_method(sample_context):
     assert "nginx" in result["app"]
 
 
-def test_get_context_properties(sample_context):
-    """Test getting context properties."""
-    adapter = TemplateContextAdapter(sample_context)
-    properties = adapter.get_context_properties()
-
-    # Should return context namespace
-    assert properties["name"] == "test-cluster"
-    assert properties["environment"] == "dev"
-
-
-def test_get_component_types(sample_context):
-    """Test getting component types."""
-    adapter = TemplateContextAdapter(sample_context)
-    components = adapter.get_component_types()
-
-    # Should return dictionary of component types
-    assert "app" in components
-    assert "nginx" in components["app"]
-    assert components["app"]["nginx"].name == "nginx"
-
-
 def test_extra_fields_handling():
     """Test that extra fields in context are properly included in the namespace."""
     # Create context with extra fields

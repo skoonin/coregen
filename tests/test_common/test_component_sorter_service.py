@@ -154,32 +154,17 @@ class TestComponentSorterService:
         # Components sorted by context then priority
         assert names == ["app", "lib"]
 
-    # ---- Configuration Tests ----
-
-    def test_custom_none_priority_value(self, sorter):
-        """Test custom value for None priority affects sort order."""
-        sorter = ComponentSorterService(none_priority_value=500)
-
+    def test_none_priority_sorts_after_any_numeric_priority(self, sorter):
+        """Null priority sorts last even against very large numeric priorities."""
         components = [
-            {"name": "app1", "priority": 1, "workspace": "", "context": ""},
             {"name": "lib_none", "priority": None, "workspace": "", "context": ""},
+            {"name": "app_999", "priority": 999, "workspace": "", "context": ""},
+            {"name": "app_1", "priority": 1, "workspace": "", "context": ""},
         ]
 
         result = sorter.sort_entities(components, "component")
 
-        # app1 comes first (priority 1), lib_none last (treated as 500)
-        assert result[0]["name"] == "app1"
-        assert result[1]["name"] == "lib_none"
-
-    def test_configuration_via_kwargs(self, sorter):
-        """Test passing configuration via kwargs."""
-        sorter = ComponentSorterService(
-            none_priority_value=500,
-            cycle_break_strategy="stable",
-        )
-
-        assert sorter.none_priority_value == 500
-        assert sorter.cycle_break_strategy == "stable"
+        assert [c["name"] for c in result] == ["app_1", "app_999", "lib_none"]
 
     # ---- Edge Cases and Error Handling ----
 
