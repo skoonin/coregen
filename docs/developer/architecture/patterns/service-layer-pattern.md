@@ -455,8 +455,8 @@ source/coregen/services/
 ├── get/
 │   └── get_service.py           # Inherits from ServicesBase
 └── config/
-    ├── cfg_base_service.py  # Specialized base for config services
-    └── cfg_view_service.py  # Example service implementation
+    ├── cfg_view_base_service.py  # Specialized base for config view services
+    └── cfg_view_service.py       # Example service implementation
 ```
 
 ## References

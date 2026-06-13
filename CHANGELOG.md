@@ -1,10 +1,13 @@
 # CHANGELOG
 
-## [Unreleased]
+## v1.1.0 - 2026-06-13
 
 ### Changed
 
 - The `--filter` option's environment variable is now `CG_FILTERS` (parameter renamed from `filter` to `filters`); `CG_FILTER` no longer applies (#16)
+- `--quiet` no longer suppresses a command's primary result; it now silences only status and progress output (#29)
+- `get` and `detect-changes` exit with code 1 (not 2) when a config file is not found, matching the documented exit-code contract and the `config` commands (#29)
+- `detect-changes` JSON/YAML output keeps stable `changes` and `deleted` arrays even when empty (#29)
 
 ### Fixed
 
@@ -12,6 +15,11 @@
 - Generation errors are now always reported with a message instead of failing silently in some paths (#16)
 - Component dependency paths no longer have to exist on disk at validation time (#16)
 - Active workspaces/contexts are no longer dropped from `generate`/`get` output when all of their children are inactive (#27)
+- `generate --quiet` now exits non-zero when generation produced errors instead of reporting success (#29)
+- Invalid input no longer produces a spurious trailing error line (e.g. `Failed to get elements: 1`) (#29)
+- Required-cascade components can no longer be filtered out with `!=`, matching the documented behavior (#32)
+- Components with a null priority now sort last even when another component has a high numeric priority (#31)
+- Writing generated output over a pre-existing empty directory no longer fails (#31)
 
 ### Security
 
