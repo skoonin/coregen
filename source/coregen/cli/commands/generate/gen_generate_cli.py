@@ -381,10 +381,13 @@ class GenerateCommand:
             # Process generation
             results = self._process_generation(options)
 
-            # Display results (unless quiet)
-            num_errors = 0
+            # The exit decision must not depend on whether results are
+            # displayed: count errors from the service results directly so
+            # --quiet runs still fail on generation errors (deduplicated the
+            # same way the formatter reports them)
+            num_errors = len(dict.fromkeys(results.get("errors", [])))
             if not options["quiet"]:
-                num_errors = self._display_results(results, options)
+                self._display_results(results, options)
 
         except TypeError as e:
             # Log detailed error for debugging

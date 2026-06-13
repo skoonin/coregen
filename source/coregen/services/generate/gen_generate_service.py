@@ -111,8 +111,8 @@ class GenerateService(ServicesBase):
             and len(matched_elements.get("contexts", {})) == 0
             and len(matched_elements.get("components", {})) == 0
         ):
-            if not self.quiet:
-                self.console.warning(f"No matches found for patterns: {paths}")
+            # The pattern matcher already warned about failed patterns; the
+            # empty-result error below is what the CLI renders
             self.logger.debug(
                 "Try using different patterns or check your configuration"
             )

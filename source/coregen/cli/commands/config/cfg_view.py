@@ -234,11 +234,26 @@ class ViewCommand(FormatValidationMixin):
         self.options = self._get_options()
         self.logger.debug(f"Running view command with options: {self.options}")
 
-        try:
-            # Validate output format is supported for this command
-            output_format = self.options.get("output_format")
-            self.validate_output_format(output_format)
+        # Validate inputs before the try block so validation failures keep
+        # their own exit semantics instead of the generic failure path
+        output_format: OutputFormat = (
+            self.options.get("output_format") or self.DEFAULT_FORMAT
+        )
+        self.validate_output_format(output_format)
 
+        # The view_mode argument is free-form text; validate it against the
+        # enum here so the service's Literal contract is actually guaranteed
+        view_mode_raw = str(self.options.get("view_mode") or ViewMode.RAW.value)
+        try:
+            view_mode = ViewMode(view_mode_raw)
+        except ValueError:
+            valid_modes = ", ".join(mode.value for mode in ViewMode)
+            self.console.error(
+                f"Invalid view mode '{view_mode_raw}'. Valid modes: {valid_modes}"
+            )
+            raise typer.Exit(2)
+
+        try:
             # Set output format for proper stderr/stdout routing (Output Pipeline pattern)
             self.console.set_output_format(output_format)
 
@@ -247,13 +262,12 @@ class ViewCommand(FormatValidationMixin):
 
             # Get configuration based on view mode
             config_file_path = self.options.get("config_file_path")
-            view_mode = self.options.get("view_mode") or ViewMode.RAW.value
 
             # Fetch configuration via service
             config_data = self.view_service.view_config(
                 config_file_path=config_file_path,
-                view_mode=view_mode,  # type: ignore[arg-type]
-                output_format=output_format,  # type: ignore[arg-type]
+                view_mode=view_mode.value,
+                output_format=output_format,
             )
 
             # No need to check for TABLE format since config view only supports YAML and JSON
@@ -261,6 +275,8 @@ class ViewCommand(FormatValidationMixin):
             # Display the result using console.print which handles formatting
             self.console.print(config_data, output_format=output_format)
 
+        except typer.Exit:
+            raise
         except FileNotFoundError as e:
             self.console.error(f"{str(e)}")
             raise typer.Exit(1)

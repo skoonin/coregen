@@ -359,12 +359,18 @@ class Console:
         if isinstance(message, str):
             message = cls._format_with_timestamp_if_debug(message, "PRINT")
 
-        # Print message with style for text-based content
-        if not cls.quiet_mode or (
-            isinstance(message, str)
-            and any(
-                message.startswith(prefix)
-                for prefix in ["Warning:", "Error:", "[DRY RUN]", "DRY RUN:"]
+        # Print message with style for text-based content. An explicit
+        # output_format marks the command's primary result (the data channel),
+        # which quiet mode must never suppress -- quiet gags status output only.
+        if (
+            not cls.quiet_mode
+            or output_format is not None
+            or (
+                isinstance(message, str)
+                and any(
+                    message.startswith(prefix)
+                    for prefix in ["Warning:", "Error:", "[DRY RUN]", "DRY RUN:"]
+                )
             )
         ):
             # Use markup directly in the printed message

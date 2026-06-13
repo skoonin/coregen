@@ -365,7 +365,9 @@ class Get(FormatValidationMixin):
                         console.info(
                             "\nUse 'coregen check-pattern' to test your patterns before running."
                         )
-                        raise typer.Exit(1)
+                        # Exit 2 = input/validation error per the documented
+                        # exit-code contract (docs/developer/architecture/overview.md)
+                        raise typer.Exit(2)
 
             # Create service instance with global options
             self.service = GetService(global_options=self.global_options)
@@ -411,6 +413,16 @@ class Get(FormatValidationMixin):
 
             self.logger.debug("Get command completed successfully")
 
+        except typer.Exit:
+            # Deliberate exits carry their own code and already printed their
+            # message; re-wrapping them produced a spurious trailer line
+            raise
+        except FileNotFoundError as e:
+            # Config/file errors are general errors (exit 1) per the documented
+            # contract; exit 2 is reserved for input/validation errors
+            console.error(f"Failed to get elements: {str(e)}")
+            self.logger.exception("Error during get command execution:")
+            raise typer.Exit(1)
         except Exception as e:
             error_msg = str(e)
             # Check if this is our validation error that's already been displayed

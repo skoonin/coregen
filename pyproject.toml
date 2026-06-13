@@ -173,6 +173,7 @@ ignore_missing_imports = true
 follow_imports = "normal"
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
+warn_unused_ignores = true
 warn_unreachable = true
 warn_no_return = true
 disallow_any_unimported = false
