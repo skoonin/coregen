@@ -398,6 +398,8 @@ coregen detect-changes [OPTIONS]
 - `--output-dir`: Custom temp directory for generated files (default: .cgtmp)
 - `--keep-generated, -k`: Don't delete generated files after comparison (for debugging)
 
+> **Matrix/JSON output**: by default the `changes` array (JSON) and `include` array (matrix) contain both changed and deleted components; check each entry's `status` field, or use `--changed-only` / `--deleted-only` to segregate them. Deleted components also appear in the separate `deleted` array.
+
 ### version Command
 
 Show the version of coregen.
