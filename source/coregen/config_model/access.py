@@ -71,6 +71,10 @@ class ConfigAccess:
         # Maps a component object's id() to its owning context for O(1) lookup
         self._component_owner_lookup: dict[int, Context] = {}
 
+        # Maps a context object's id() to its owning workspace for O(1) lookup.
+        # Identity-keyed because context names are not unique across workspaces.
+        self._context_owner_lookup: dict[int, WorkspaceConfig] = {}
+
         self._build_lookup_tables()
 
     def _build_lookup_tables(self) -> None:
@@ -88,6 +92,7 @@ class ConfigAccess:
             for context_name, context in contexts.items():
                 # Add context to lookup
                 self._context_lookup[workspace.name][context_name] = context
+                self._context_owner_lookup[id(context)] = workspace
 
                 # Add to environment lookup
                 env = context.environment
@@ -333,12 +338,27 @@ class ConfigAccess:
 
         return filtered_matches
 
+    def find_workspace_for_context(self, context: Context) -> WorkspaceConfig | None:
+        """Get the workspace that owns a context in O(1).
+
+        Identity-based: context names are not unique across workspaces, so the
+        lookup matches the exact object handed out by this ConfigAccess. Copies
+        fall back to the name+equality scan.
+        """
+        workspace = self._context_owner_lookup.get(id(context))
+        if workspace is not None:
+            return workspace
+        for candidate in self.workspaces:
+            for contexts in candidate.contexts.values():
+                if context.name in contexts and contexts[context.name] == context:
+                    return candidate
+        return None
+
     def _get_workspace_from_context(self, context: Context) -> WorkspaceConfig:
         """Get the workspace that contains a given context."""
-        for workspace in self.workspaces:
-            for contexts in workspace.contexts.values():
-                if context.name in contexts and contexts[context.name] == context:
-                    return workspace
+        workspace = self.find_workspace_for_context(context)
+        if workspace is not None:
+            return workspace
         # This should not happen if the context is part of the configuration
         raise ValueError(f"Context {context.name} not found in any workspace")
 
