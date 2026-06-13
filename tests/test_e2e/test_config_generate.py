@@ -156,6 +156,39 @@ def test_config_generate_dry_run(env_setup, run_cli_command):
 
 
 @pytest.mark.e2e
+def test_config_file_only_skips_workspace_directories(env_setup, run_cli_command):
+    """--config-file-only writes the config but creates no workspace directories.
+
+    Audit N38: the existing CLI test only asserts the flag forwards. The
+    observable difference is in ConfigGenerateService.generate_config, which skips
+    workspace_initializer.initialize_workspace when config_file_only is set. A
+    default run therefore creates the workspace_dir entries (e.g. contexts/); the
+    flagged run leaves only the config file.
+    """
+    default_dir = Path(env_setup["root_dir"]) / "cfo_default_test"
+    default_dir.mkdir(exist_ok=True)
+    os.chdir(default_dir)
+    assert run_cli_command("config generate")["success"]
+    assert (default_dir / ".cgconfig.yaml").exists()
+    # The default workspace from config defaults is "contexts".
+    default_subdirs = {p.name for p in default_dir.iterdir() if p.is_dir()}
+    assert "contexts" in default_subdirs
+
+    only_dir = Path(env_setup["root_dir"]) / "cfo_only_test"
+    only_dir.mkdir(exist_ok=True)
+    os.chdir(only_dir)
+    assert run_cli_command("config generate --config-file-only")["success"]
+    assert (only_dir / ".cgconfig.yaml").exists()
+    only_subdirs = {p.name for p in only_dir.iterdir() if p.is_dir()}
+    assert (
+        not only_subdirs
+    ), f"--config-file-only must not create workspace directories, found: {only_subdirs}"
+
+    # The two modes must produce observably different directory structures.
+    assert default_subdirs != only_subdirs
+
+
+@pytest.mark.e2e
 def test_config_generate_in_existing_project(env_setup, run_cli_command):
     """Test config generate in directory with existing project structure."""
     os.chdir(env_setup["root_dir"])

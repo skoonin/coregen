@@ -147,7 +147,14 @@ def modify_component(repo_path, context_name, component_name, file_change):
         file_path.write_text(content)
 
 
-def run_detect_changes(repo_path, base_branch, include_required_changes=False):
+def run_detect_changes(
+    repo_path,
+    base_branch,
+    include_required_changes=False,
+    filters=None,
+    output_dir=None,
+    keep_generated=False,
+):
     """Run detect-changes command and return parsed output."""
     # Try to use venv coregen, fall back to system PATH (for CI)
     venv_coregen = Path(__file__).parent.parent.parent / ".venv" / "bin" / "coregen"
@@ -168,6 +175,12 @@ def run_detect_changes(repo_path, base_branch, include_required_changes=False):
     ]
     if include_required_changes:
         cmd.append("--include-required-changes")
+    for expression in filters or []:
+        cmd.extend(["--filter", expression])
+    if output_dir is not None:
+        cmd.extend(["--output-dir", str(output_dir)])
+    if keep_generated:
+        cmd.append("--keep-generated")
 
     # Run in repo_path where .cgconfig.yaml exists
     result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
@@ -522,3 +535,169 @@ class TestDetectChangesIntegration:
         # Assert message field present
         assert "message" in result
         assert result["message"] == "No changes detected"
+
+
+def _commit_all(repo_path, message):
+    """Stage every change and commit it with the given message."""
+    subprocess.run(["git", "add", "."], cwd=repo_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=repo_path,
+        capture_output=True,
+        check=True,
+    )
+
+
+def stage_required_prometheus_change(repo_path):
+    """Mark context-dev's prometheus as required and trigger a real change.
+
+    Mirrors the mechanism of the existing cascade tests: marking a component
+    required in cgvalues and then adding a file under its template source so the
+    generated output differs against the base branch. After two commits the
+    triggering state is reachable at HEAD~2.
+    """
+    cgvalues_file = repo_path / "contexts" / "context-dev" / "context-dev-cgvalues.yaml"
+    cgvalues = yaml.safe_load(cgvalues_file.read_text())
+    for component in cgvalues["context"]["app"]:
+        if component["name"] == "prometheus":
+            component["config"]["required"] = True
+            break
+    cgvalues_file.write_text(yaml.dump(cgvalues, sort_keys=False))
+    _commit_all(repo_path, "Mark prometheus as required")
+
+    prometheus_dir = repo_path / "common-templates" / "prometheus"
+    (prometheus_dir / "integration-change.txt").write_text("Triggering change\n")
+    _commit_all(repo_path, "Change prometheus template source")
+
+
+@pytest.mark.integration
+class TestDetectChangesKeepGenerated:
+    """Behavior tests for --keep-generated cleanup semantics (audit N6).
+
+    Contract observed in DetectChangesService.detect_changes: the cleanup branch
+    runs only when keep_generated is False AND output_dir is None. A custom
+    output_dir therefore always persists; the default timestamped .cgtmp tree is
+    removed only on a default run and survives when keep_generated is set.
+    """
+
+    def test_keep_generated_with_custom_output_dir_persists_files(
+        self, temp_coregen_repo, tmp_path
+    ):
+        """keep_generated + a custom output_dir leaves the comparison files behind."""
+        repo_path = temp_coregen_repo
+        modify_component(
+            repo_path, "context-dev", "nginx", {"main.tf": "# keep-generated test\n"}
+        )
+        _commit_all(repo_path, "Update nginx main.tf")
+
+        output_dir = tmp_path / "kept-output"
+        result = run_detect_changes(
+            repo_path,
+            "HEAD~1",
+            output_dir=output_dir,
+            keep_generated=True,
+        )
+
+        assert "changes" in result
+        # The service renders the current branch, the extracted base branch, and
+        # the base-branch generation into named subdirectories under output_dir.
+        assert (output_dir / "current").is_dir()
+        assert (output_dir / "base").is_dir()
+        assert (output_dir / "base_extracted").is_dir()
+        # Rendered comparison output must remain readable after the call returns.
+        assert any(output_dir.rglob("*.tf"))
+
+    def test_keep_generated_without_output_dir_persists_temp_tree(
+        self, temp_coregen_repo
+    ):
+        """keep_generated alone leaves the default .cgtmp tree in place."""
+        repo_path = temp_coregen_repo
+        modify_component(
+            repo_path, "context-dev", "nginx", {"main.tf": "# keep tmp test\n"}
+        )
+        _commit_all(repo_path, "Update nginx main.tf")
+
+        run_detect_changes(repo_path, "HEAD~1", keep_generated=True)
+
+        cgtmp_dir = repo_path / ".cgtmp"
+        assert cgtmp_dir.is_dir()
+        # A timestamped detect-changes run directory must survive under .cgtmp.
+        assert any(cgtmp_dir.glob("detect-changes-*"))
+
+    def test_default_run_cleans_up_temp_tree(self, temp_coregen_repo):
+        """Without keep_generated and without output_dir, .cgtmp is removed."""
+        repo_path = temp_coregen_repo
+        modify_component(
+            repo_path, "context-dev", "nginx", {"main.tf": "# default cleanup test\n"}
+        )
+        _commit_all(repo_path, "Update nginx main.tf")
+
+        run_detect_changes(repo_path, "HEAD~1")
+
+        # The empty .cgtmp parent is also removed once its run directory is gone.
+        assert not (repo_path / ".cgtmp").exists()
+
+
+@pytest.mark.integration
+class TestDetectChangesCascadeFilterSurvival:
+    """Required-cascade behavior under a != filter, against the real filter (N8).
+
+    CLAUDE.md documents that required-cascade components "cannot be filtered out"
+    with !=. The existing filtering unit tests mock FilterService entirely, so
+    the invariant was never exercised end-to-end. These tests run the real filter
+    with no mocking. _apply_filters_to_results retains any change whose reason is
+    required_cascade regardless of the filter, enforcing the invariant.
+    """
+
+    def test_cascade_present_before_filtering(self, temp_coregen_repo):
+        """Baseline: marking a required component produces a required_cascade entry.
+
+        This proves the cascade fixture is set up correctly and is the precondition
+        for the survival check below.
+        """
+        repo_path = temp_coregen_repo
+        stage_required_prometheus_change(repo_path)
+
+        unfiltered = run_detect_changes(
+            repo_path, "HEAD~2", include_required_changes=True
+        )
+        cascade_nginx = next(
+            (
+                c
+                for c in unfiltered["changes"]
+                if c["component_name"] == "nginx"
+                and c["context_name"] == "context-dev"
+                and c["reason"] == "required_cascade"
+            ),
+            None,
+        )
+        assert (
+            cascade_nginx is not None
+        ), "Expected context-dev nginx to appear via required_cascade"
+
+    def test_required_cascade_component_survives_not_equal_filter(
+        self, temp_coregen_repo
+    ):
+        """A cascaded component is retained even when a != filter names it."""
+        repo_path = temp_coregen_repo
+        stage_required_prometheus_change(repo_path)
+
+        filtered = run_detect_changes(
+            repo_path,
+            "HEAD~2",
+            include_required_changes=True,
+            filters=["component.name!=nginx"],
+        )
+        surviving = next(
+            (
+                c
+                for c in filtered["changes"]
+                if c["component_name"] == "nginx"
+                and c["context_name"] == "context-dev"
+                and c["reason"] == "required_cascade"
+            ),
+            None,
+        )
+        assert (
+            surviving is not None
+        ), "Required-cascade component was filtered out by != (invariant violated)"

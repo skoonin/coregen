@@ -1060,8 +1060,14 @@ class DetectChangesService(ServicesBase):
             # Build the key for this change (context/component format)
             change_key = f"{change.context_name}/{change.component_name}"
 
+            # Required-cascade changes cannot be filtered out: a required
+            # component's change cascades to all components in its context, and
+            # that cascade is an invariant of the domain model, not a filterable
+            # result.
+            is_cascade = change.reason == ChangeReason.REQUIRED_CASCADE
+
             # Check if this component passed the filters
-            if change_key in filtered_component_keys:
+            if is_cascade or change_key in filtered_component_keys:
                 filtered_changes.append(change)
                 if change.status == ChangeStatus.DELETED:
                     filtered_deleted.append(change)
