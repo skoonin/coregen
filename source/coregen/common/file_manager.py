@@ -284,6 +284,12 @@ class FileManager:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
 
+            # An existing empty directory at the target is skipped by
+            # _handle_action; remove it so write_text has a file target instead
+            # of raising IsADirectoryError
+            if path.is_dir() and not any(path.iterdir()):
+                path.rmdir()
+
             path.write_text(content)
 
             if source_perms and source_perms.exists():

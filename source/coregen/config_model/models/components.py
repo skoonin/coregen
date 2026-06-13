@@ -203,20 +203,22 @@ class Component(BaseModel):
             for dep in self.config.dependencies
         ]
 
-    def sort_key(self) -> tuple[str, int, str]:
+    def sort_key(self) -> tuple[str, bool, int, str]:
         """Return sort key for natural ordering.
 
         Components are sorted by:
-        1. Context name (if available)
-        2. Priority (0 is highest, None becomes 999)
+        1. Context (the real field; empty string when unset)
+        2. Priority (0 is highest; null priority sorts last via the is-None flag)
         3. Component name (for stable ordering)
 
         Returns:
             Tuple for sorting
         """
+        priority = self.config.priority
         return (
-            getattr(self, "context_name", ""),
-            self.config.priority if self.config.priority is not None else 999,
+            self.context or "",
+            priority is None,
+            priority if priority is not None else 0,
             self.name,
         )
 
@@ -234,14 +236,18 @@ class Component(BaseModel):
         return self.sort_key() < other.sort_key()
 
     def __eq__(self, other: object) -> bool:
-        """Check equality based on component name.
+        """Check equality on the same identity as ordering.
+
+        Uses (context, name) so equality stays consistent with sort_key under
+        @total_ordering: two same-named components in different contexts are
+        distinct rather than equal.
 
         Args:
             other: Another object to compare with
 
         Returns:
-            True if components have the same name
+            True if components share the same context and name
         """
         if not isinstance(other, Component):
             return NotImplemented
-        return self.name == other.name
+        return (self.context, self.name) == (other.context, other.name)
