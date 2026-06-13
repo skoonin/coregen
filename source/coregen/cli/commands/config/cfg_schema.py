@@ -200,7 +200,7 @@ class SchemaCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Reuse global options fetched in run(); fetch on demand otherwise  # type: ignore[unreachable]
+        # Reuse global options fetched in run(); fetch on demand otherwise
         if self.global_options is None:
             self.global_options = GlobalOptions.from_context(self.ctx)
         options = self.global_options.to_dict()
@@ -220,7 +220,7 @@ class SchemaCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options first  # type: ignore[unreachable]
+        # Get global options first
         self.global_options = GlobalOptions.from_context(self.ctx)
 
         # Get options from context
@@ -301,6 +301,10 @@ class SchemaCommand(FormatValidationMixin):
                 # Output the combined schema data through console
                 self.console.print(result["schema_data"], output_format=output_format)
 
+        except typer.Exit:
+            # Deliberate exits already reported their error; re-wrapping them
+            # appended the exit code to the user-facing message
+            raise
         except FileNotFoundError as e:
             self.logger.error(f"Config file not found: {str(e)}")
             self.console.error(f"{str(e)}")

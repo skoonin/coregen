@@ -147,7 +147,7 @@ class ConfigCreator:
         context_type = self.settings.workspace.context_type
         workspace["contexts"] = {context_type: {}}
 
-        return workspace  # type: ignore
+        return workspace  # type: ignore[return-value]
 
     def create_context(
         self,
@@ -203,7 +203,7 @@ class ConfigCreator:
         # components: { component_type: {} }
         context["components"] = {component_type: {}}
 
-        return context  # type: ignore
+        return context  # type: ignore[return-value]
 
     def create_component(self, name: str, path: str | None = None) -> ComponentDict:
         """
@@ -291,7 +291,7 @@ class ConfigCreator:
         if isinstance(context_type_dict, dict):
             context_type_dict[context["name"]] = context
 
-        return workspace_dict  # type: ignore
+        return workspace_dict  # type: ignore[return-value]
 
     def add_component_to_context(
         self, context: ContextDict, component: ComponentDict
@@ -342,4 +342,4 @@ class ConfigCreator:
         if isinstance(component_type_dict, dict):
             component_type_dict[component["name"]] = component
 
-        return context_dict  # type: ignore
+        return context_dict  # type: ignore[return-value]

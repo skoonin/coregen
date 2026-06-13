@@ -235,9 +235,9 @@ class DetectChangesFormatter:
         elif deleted_only:
             data = {"deleted": data.get("deleted", [])}
 
-        # Handle empty results
+        # Keep arrays present when empty for a stable machine-readable schema
         if not data.get("changes") and not data.get("deleted"):
-            return yaml_formatter.format({"message": "No changes detected"})
+            data["message"] = "No changes detected"
 
         return yaml_formatter.format(data)
 
@@ -302,9 +302,9 @@ class DetectChangesFormatter:
         elif deleted_only:
             data = {"deleted": data.get("deleted", [])}
 
-        # Handle empty results
+        # Keep arrays present when empty for a stable machine-readable schema
         if not data.get("changes") and not data.get("deleted"):
-            return json_formatter.format({"message": "No changes detected"})
+            data["message"] = "No changes detected"
 
         return json_formatter.format(data)
 

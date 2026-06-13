@@ -206,7 +206,9 @@ class TestDetectChangesFormatter:
         output = DetectChangesFormatter.format_json(result)
         data = json.loads(output)
 
-        assert data == {"message": "No changes detected"}
+        assert data["changes"] == []
+        assert data["deleted"] == []
+        assert data["message"] == "No changes detected"
 
     def test_format_json_name_only(self) -> None:
         """Test JSON formatting with name_only=True."""
@@ -325,7 +327,9 @@ class TestDetectChangesFormatter:
         output = DetectChangesFormatter.format_yaml(result)
         data = yaml.safe_load(output)
 
-        assert data == {"message": "No changes detected"}
+        assert data["changes"] == []
+        assert data["deleted"] == []
+        assert data["message"] == "No changes detected"
 
     # ============================================================================
     # Matrix Format Tests
@@ -437,12 +441,14 @@ class TestDetectChangesFormatter:
         # JSON format
         json_output = DetectChangesFormatter.format_json(result)
         json_data = json.loads(json_output)
-        assert json_data == {"message": "No changes detected"}
+        assert json_data["changes"] == []
+        assert json_data["message"] == "No changes detected"
 
         # YAML format
         yaml_output = DetectChangesFormatter.format_yaml(result)
         yaml_data = yaml.safe_load(yaml_output)
-        assert yaml_data == {"message": "No changes detected"}
+        assert yaml_data["changes"] == []
+        assert yaml_data["message"] == "No changes detected"
 
         # Matrix format (should have empty include array)
         matrix_output = DetectChangesFormatter.format_matrix(result)

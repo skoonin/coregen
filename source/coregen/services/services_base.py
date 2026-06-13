@@ -415,19 +415,17 @@ class ServicesBase(ServiceBase):
 
         self.console.debug(f"Matched {len(aggregated_result['components'])} components")
 
-        # Report on failed patterns if any
-        if failed_patterns:
-            # Show standard warning for patterns that didn't match
-            if not self.quiet:
+        # Report on failed patterns once: the all-failed case subsumes the
+        # per-pattern count, and the caller reports its own empty-result error
+        if failed_patterns and not self.quiet:
+            if len(patterns) == len(failed_patterns):
+                self.console.warning(
+                    f"No configuration elements were matched by any pattern: {failed_patterns}"
+                )
+            else:
                 self.console.warning(
                     f"{len(failed_patterns)} pattern(s) did not match anything: {failed_patterns}"
                 )
-
-            if len(patterns) == len(failed_patterns):
-                if not self.quiet:
-                    self.console.warning(
-                        "No configuration elements were matched by any pattern"
-                    )
 
         # NOTE: User-facing info about matched contexts should be handled by CLI layer
         # Services should only return raw data for the CLI to format and display
