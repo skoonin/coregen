@@ -247,10 +247,9 @@ class Context(BaseModel):
                         "Active context must have at least one active component"
                     )
 
-        # Validate component dependencies - active components cannot depend on inactive components
-        if not self.skip_validation:
-            self._validate_component_dependencies()
-
+        # Dependency validation runs in the processor once components are
+        # attached (processor attaches them after construction, so a run here
+        # would only ever see a partial component set)
         return self
 
     def _validate_component_dependencies(self) -> None:

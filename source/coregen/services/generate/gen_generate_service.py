@@ -331,19 +331,13 @@ class GenerateService(ServicesBase):
         }
 
         # Get workspace for this context
-        workspace_name = None
-        for ws_name, contexts in self.config_access._context_lookup.items():
-            if context.name in contexts:
-                workspace_name = ws_name
-                break
-
-        if not workspace_name:
+        workspace = self.config_access.find_workspace_for_context(context)
+        if workspace is None:
             error_msg = f"Could not find workspace for context: {context.name}"
             self.console.error(error_msg)
             results["errors"].append(error_msg)
             return results
-
-        workspace = self.config_access._workspace_lookup[workspace_name]
+        workspace_name = workspace.name
 
         # Determine primary output directory
         primary_output_dir: Path
@@ -601,14 +595,8 @@ class GenerateService(ServicesBase):
             "warnings": [],  # For template issues
         }
 
-        # Get workspace for this context
-        workspace_name = None
-        for ws_name, contexts in self.config_access._context_lookup.items():
-            if context.name in contexts:
-                workspace_name = ws_name
-                break
-
-        if not workspace_name:
+        # Guard: the context must belong to a known workspace
+        if self.config_access.find_workspace_for_context(context) is None:
             error_msg = f"Could not find workspace for context: {context.name}"
             self.console.error(error_msg)
             results["errors"].append(error_msg)
@@ -776,17 +764,10 @@ class GenerateService(ServicesBase):
     ) -> dict[str, Any]:
         """Create template context for rendering templates."""
         # Get workspace for this context
-        workspace_name = None
-        for ws_name, contexts in self.config_access._context_lookup.items():
-            if context.name in contexts:
-                workspace_name = ws_name
-                break
-
-        if not workspace_name:
+        workspace = self.config_access.find_workspace_for_context(context)
+        if workspace is None:
             self.console.error(f"Could not find workspace for context: {context.name}")
             return {}
-
-        workspace = self.config_access._workspace_lookup[workspace_name]
 
         # Use TemplateContextAdapter to create the complete template context
         adapter = TemplateContextAdapter(
