@@ -16,6 +16,7 @@ close it (directly or via ``with``) to release those handles.
 
 import subprocess
 import tarfile
+import tempfile
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -117,6 +118,11 @@ class GitTreeExtractor:
         if verbose:
             self.logger.debug(f"Extracting files from ref '{ref}' to {dest_dir}")
 
+        # Self-protecting: validate the ref even though callers validate first,
+        # so extract() is safe regardless of call order
+        if not self._is_safe_git_ref(ref):
+            raise RuntimeError(f"Unsafe git ref rejected: '{ref}'")
+
         # Create output directory
         dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -124,48 +130,53 @@ class GitTreeExtractor:
             # Use cached repository instance
             repo = self._get_repo()
 
-            # Stream git archive directly to tar extraction (no temp file)
-            proc = subprocess.Popen(
-                ["git", "archive", ref],
-                cwd=repo.working_dir if repo else None,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+            # stderr goes to a temp file rather than a pipe: the tar reader
+            # drains stdout, and a full stderr pipe buffer would otherwise
+            # deadlock git archive against the still-reading tar stream
+            with tempfile.TemporaryFile() as stderr_file:
+                # Stream git archive directly to tar extraction (no temp file)
+                proc = subprocess.Popen(
+                    ["git", "archive", ref],
+                    cwd=repo.working_dir if repo else None,
+                    stdout=subprocess.PIPE,
+                    stderr=stderr_file,
+                )
 
-            try:
-                # Open tar stream and safely extract
-                # Note: mode="r|" for streaming tar without seeking
-                with tarfile.open(fileobj=proc.stdout, mode="r|") as tar:
-                    self._safe_extract(tar, dest_dir)
+                try:
+                    # Open tar stream and safely extract
+                    # Note: mode="r|" for streaming tar without seeking
+                    with tarfile.open(fileobj=proc.stdout, mode="r|") as tar:
+                        self._safe_extract(tar, dest_dir)
 
-                # Wait for git archive to complete and check return code
-                stderr = proc.stderr.read() if proc.stderr else b""
-                rc = proc.wait()
+                    # Wait for git archive to complete and check return code
+                    rc = proc.wait()
+                    stderr_file.seek(0)
+                    stderr = stderr_file.read()
 
-                if rc != 0:
-                    error_msg = (
-                        stderr.decode("utf-8", errors="replace")
-                        if stderr
-                        else "Unknown error"
-                    )
-                    raise RuntimeError(
-                        f"git archive failed with exit code {rc}: {error_msg}"
-                    )
+                    if rc != 0:
+                        error_msg = (
+                            stderr.decode("utf-8", errors="replace")
+                            if stderr
+                            else "Unknown error"
+                        )
+                        raise RuntimeError(
+                            f"git archive failed with exit code {rc}: {error_msg}"
+                        )
 
-                if stderr and verbose:
-                    self.logger.debug(
-                        "Git archive stderr: "
-                        f"{stderr.decode('utf-8', errors='replace')}"
-                    )
+                    if stderr and verbose:
+                        self.logger.debug(
+                            "Git archive stderr: "
+                            f"{stderr.decode('utf-8', errors='replace')}"
+                        )
 
-                self.logger.debug(f"Successfully extracted {ref} to {dest_dir}")
+                    self.logger.debug(f"Successfully extracted {ref} to {dest_dir}")
 
-            except Exception:
-                # Kill the process if it's still running
-                if proc.poll() is None:
-                    proc.kill()
-                    proc.wait()
-                raise
+                except Exception:
+                    # Kill the process if it's still running
+                    if proc.poll() is None:
+                        proc.kill()
+                        proc.wait()
+                    raise
 
         except subprocess.SubprocessError as e:
             self.logger.error(f"Failed to extract base branch: {e}")

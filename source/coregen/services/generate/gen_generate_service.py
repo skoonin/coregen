@@ -282,9 +282,9 @@ class GenerateService(ServicesBase):
 
         if self.dry_run:
             if not self.quiet:
-                self.console.info(
-                    f"[bright_white]Would delete {description}:[/] {directory}"
-                )
+                # No Rich markup in service strings: presentation belongs to the
+                # CLI layer, and markup corrupts non-text output channels
+                self.console.info(f"Would delete {description}: {directory}")
             self.logger.debug(f"Dry-run: Would delete {description} {directory}")
         else:
             try:

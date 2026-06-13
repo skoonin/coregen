@@ -463,7 +463,7 @@ class DetectChangesService(ServicesBase):
         """
         config_filename = ".cgconfig.yaml"
 
-        # Start from current directory and search up to repo root
+        # Start from current directory and search up to (and including) repo root
         search_dir = current_dir
         while True:
             config_path = search_dir / config_filename
@@ -471,9 +471,16 @@ class DetectChangesService(ServicesBase):
                 self.logger.debug(f"Found config file at: {config_path}")
                 return config_path
 
+            # Stop at the repo root itself; use Path containment rather than a
+            # string prefix so a sibling like /work/repo-evil is not treated as
+            # inside /work/repo
+            if search_dir == repo_root:
+                break
             parent = search_dir.parent
-            if parent == search_dir or not str(search_dir).startswith(str(repo_root)):
-                # Reached filesystem root or stepped outside the repo
+            if parent == search_dir or not (
+                repo_root == parent or repo_root in parent.parents
+            ):
+                # Reached filesystem root or the parent would step outside the repo
                 break
             search_dir = parent
 
