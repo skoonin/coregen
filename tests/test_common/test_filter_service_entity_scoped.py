@@ -72,7 +72,7 @@ class TestFilterServiceEntityScoped:
             "entity_type": "component",
             "property": "config.active",
             "operator": "=",
-            "value": True,
+            "value": "true",
         }
 
         # Component vars property
@@ -94,7 +94,7 @@ class TestFilterServiceEntityScoped:
             "entity_type": "context",
             "property": "priority",
             "operator": "!=",
-            "value": 100,
+            "value": "100",
         }
 
         # Greater than
@@ -103,7 +103,7 @@ class TestFilterServiceEntityScoped:
             "entity_type": "component",
             "property": "config.priority",
             "operator": ">",
-            "value": 50,
+            "value": "50",
         }
 
         # Pattern match (regex-style with ~=)
@@ -132,7 +132,7 @@ class TestFilterServiceEntityScoped:
             "entity_type": None,
             "property": "active",
             "operator": "=",
-            "value": True,
+            "value": "true",
         }
 
         # Nested property without entity
@@ -141,7 +141,7 @@ class TestFilterServiceEntityScoped:
             "entity_type": None,
             "property": "config.priority",
             "operator": "=",
-            "value": 100,
+            "value": "100",
         }
 
     def test_parse_custom_fields(self, filter_service):
@@ -178,21 +178,23 @@ class TestFilterServiceEntityScoped:
             "value": None,  # Should convert "none" to None for priority
         }
 
-    def test_parse_type_conversions_with_entity(self, filter_service):
-        """Test type conversions work with entity-scoped parsing."""
-        # Boolean conversion
+    def test_parse_keeps_values_as_strings_with_entity(self, filter_service):
+        """Entity-scoped parsing keeps values as strings (no parse-time coercion);
+        _compare_values coerces against the field's real type at apply time.
+        """
+        # Boolean-looking value stays a string
         result = filter_service.parse_filter_expression(
             "component.config.required=false"
         )
-        assert result["value"] is False
+        assert result["value"] == "false"
 
-        # Integer conversion
+        # Numeric value stays a string
         result = filter_service.parse_filter_expression("context.account_id=12345")
-        assert result["value"] == 12345
+        assert result["value"] == "12345"
 
-        # Float conversion
+        # Float-looking value stays a string
         result = filter_service.parse_filter_expression("component.vars.version=3.14")
-        assert result["value"] == 3.14
+        assert result["value"] == "3.14"
 
     def test_apply_filter_respects_entity_type(
         self, filter_service, mock_config_access

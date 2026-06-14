@@ -247,6 +247,7 @@ class CheckPatternService(ServicesBase):
 
         # Apply filters if specified
         if filters:
+            self.validate_pattern_filter_compatibility([pattern], filters)
             parsed_filters = []
             for filter_expr in filters:
                 parsed_filters.append(self.parse_filter_expression(filter_expr))

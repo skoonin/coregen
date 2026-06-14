@@ -77,9 +77,7 @@ class TestFilterArchitecture:
         patterns = ["cm/*"]
         filters = ["context.environment=prod"]
 
-        with pytest.raises(
-            ValueError, match="Pattern/filter mismatch.*component fields only"
-        ):
+        with pytest.raises(ValueError, match="Pattern/filter mismatch.*context fields"):
             self.run_filter_test(get_service, patterns, filters)
 
     def test_multiple_filters(self, get_service: GetService) -> None:

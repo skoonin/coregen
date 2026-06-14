@@ -192,15 +192,16 @@ class TestRegexFilterEdgeCases:
     # ===== Invalid Patterns =====
 
     def test_regex_invalid_unclosed_bracket(self, setup_regex_filter):
-        """Test invalid regex with unclosed bracket."""
+        """Invalid regex (unclosed bracket) is rejected at parse time and guarded
+        at apply time.
+        """
 
         filter_service = setup_regex_filter["filter_service"]
 
-        result = filter_service.parse_filter_expression("priority~=[")
-        assert result["operator"] == "~="
-        assert result["value"] == "["
+        with pytest.raises(ValueError, match="Invalid regex pattern"):
+            filter_service.parse_filter_expression("priority~=[")
 
-        # Invalid pattern should raise ValueError with clear message
+        # Apply-time guard remains as defense in depth
         with pytest.raises(ValueError, match="Invalid regex pattern"):
             filter_service._compare_values(1, "~=", "[")
 
@@ -208,28 +209,28 @@ class TestRegexFilterEdgeCases:
             filter_service._compare_values("test", "~=", "[")
 
     def test_regex_invalid_unclosed_parenthesis(self, setup_regex_filter):
-        """Test invalid regex with unclosed parenthesis."""
+        """Invalid regex (unclosed parenthesis) is rejected at parse and apply
+        time.
+        """
 
         filter_service = setup_regex_filter["filter_service"]
 
-        result = filter_service.parse_filter_expression("priority~=(")
-        assert result["operator"] == "~="
-        assert result["value"] == "("
+        with pytest.raises(ValueError, match="Invalid regex pattern"):
+            filter_service.parse_filter_expression("priority~=(")
 
-        # Invalid pattern should raise ValueError with clear message
         with pytest.raises(ValueError, match="Invalid regex pattern"):
             filter_service._compare_values(1, "~=", "(")
 
     def test_regex_invalid_quantifier(self, setup_regex_filter):
-        """Test invalid regex with improper quantifier."""
+        """Invalid regex (improper quantifier) is rejected at parse and apply
+        time.
+        """
 
         filter_service = setup_regex_filter["filter_service"]
 
-        result = filter_service.parse_filter_expression("priority~=*")
-        assert result["operator"] == "~="
-        assert result["value"] == "*"
+        with pytest.raises(ValueError, match="Invalid regex pattern"):
+            filter_service.parse_filter_expression("priority~=*")
 
-        # Invalid pattern should raise ValueError with clear message
         with pytest.raises(ValueError, match="Invalid regex pattern"):
             filter_service._compare_values(1, "~=", "*")
 
@@ -293,15 +294,17 @@ class TestRegexFilterEdgeCases:
 
     # ===== Cross-Operator Consistency =====
 
-    def test_non_regex_operators_still_do_type_conversion(self, setup_regex_filter):
-        """Verify non-regex operators still perform type conversion."""
+    def test_non_regex_operators_coerce_at_compare_time(self, setup_regex_filter):
+        """Non-regex operators keep the value as a string at parse time;
+        _compare_values coerces the right operand to the left operand's type.
+        """
 
         filter_service = setup_regex_filter["filter_service"]
 
-        # Equality should convert types
+        # Parse keeps the value as a string (no parse-time coercion)
         result = filter_service.parse_filter_expression("priority=5")
         assert result["operator"] == "="
-        assert result["value"] == 5  # Should be int
+        assert result["value"] == "5"
 
         # Type conversion: right operand is converted to match left operand's type
         # So "5" (string) won't be converted when comparing with int 5

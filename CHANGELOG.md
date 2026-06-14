@@ -8,6 +8,7 @@
 - `--quiet` no longer suppresses a command's primary result; it now silences only status and progress output (#29)
 - `get` and `detect-changes` exit with code 1 (not 2) when a config file is not found, matching the documented exit-code contract and the `config` commands (#29)
 - `detect-changes` JSON/YAML output keeps stable `changes` and `deleted` arrays even when empty (#29)
+- Invalid filters — invalid regex, empty property name, or a pattern/filter entity mismatch — now exit non-zero with a clear message across `get`, `generate`, `detect-changes`, and `check-pattern` instead of silently returning no results (#34)
 
 ### Fixed
 
@@ -20,6 +21,8 @@
 - Required-cascade components can no longer be filtered out with `!=`, matching the documented behavior (#32)
 - Components with a null priority now sort last even when another component has a high numeric priority (#31)
 - Writing generated output over a pre-existing empty directory no longer fails (#31)
+- `generate --filter` no longer emits required components for contexts excluded by the filter (#34)
+- Filter exact match (`=`/`!=`) now works on string fields whose values look numeric or boolean, e.g. account IDs or `"false"` (#34)
 
 ### Security
 

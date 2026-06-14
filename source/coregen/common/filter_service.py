@@ -109,28 +109,36 @@ class FilterService:
             filter_spec["operator"] = "="
             filter_spec["value"] = True
 
-        # Convert value to appropriate type
-        if isinstance(filter_spec["value"], str):
-            # For regex operators, keep value as string (it's the pattern)
-            if filter_spec["operator"] not in ("~=", "=~"):
-                # For non-regex operators only: Convert "none" or "null" to Python None for any field (case-insensitive)
-                # Note: Regex operators preserve these as literal strings for pattern matching
-                if filter_spec["value"].lower() in ("none", "null"):
-                    filter_spec["value"] = None
-                # Convert to boolean
-                elif filter_spec["value"].lower() == "true":
-                    filter_spec["value"] = True
-                elif filter_spec["value"].lower() == "false":
-                    filter_spec["value"] = False
-                else:
-                    try:
-                        filter_spec["value"] = int(filter_spec["value"])
-                    except ValueError:
-                        try:
-                            if filter_spec["value"].count(".") == 1:
-                                filter_spec["value"] = float(filter_spec["value"])
-                        except ValueError:
-                            pass
+        # Reject structurally malformed expressions at the boundary.
+        if not filter_spec["property"]:
+            raise ValueError(
+                f"Invalid filter expression: missing property name before "
+                f"'{filter_spec['operator']}'."
+            )
+
+        # Surface an invalid regex at parse time instead of deferring the failure
+        # to apply time where it is harder to attribute.
+        if filter_spec["operator"] in ("~=", "=~") and isinstance(
+            filter_spec["value"], str
+        ):
+            try:
+                re.compile(filter_spec["value"])
+            except re.error as e:
+                raise ValueError(
+                    f"Invalid regex pattern '{filter_spec['value']}': {e}"
+                ) from e
+
+        # Convert only none/null to Python None (case-insensitive), for non-regex
+        # operators. Int/bool/float coercion is intentionally NOT done here:
+        # _compare_values coerces the value against each field's actual type,
+        # which also lets custom string fields whose values look numeric or
+        # boolean match. Regex operators keep none/null as literal patterns.
+        if (
+            isinstance(filter_spec["value"], str)
+            and filter_spec["operator"] not in ("~=", "=~")
+            and filter_spec["value"].lower() in ("none", "null")
+        ):
+            filter_spec["value"] = None
 
         return filter_spec
 

@@ -185,6 +185,32 @@ class TestFilterServiceIntegration:
         assert "prod-context/redis" not in result["components"]  # priority 5
         assert len(result["components"]) == 2
 
+    def test_filter_component_by_string_custom_field_that_looks_numeric_or_bool(
+        self, filter_service, sample_elements
+    ):
+        """Custom string fields whose values look numeric/boolean must match an
+        exact filter. Regression: parse_filter_expression coerced the filter
+        value to int/bool, so a string field value never compared equal.
+        """
+        acct = Component(
+            name="acct", config=ComponentConfig(active=True), account_id="12345"
+        )
+        flag = Component(
+            name="flag", config=ComponentConfig(active=True), force_destroy="false"
+        )
+        sample_elements["components"]["prod-context/acct"] = acct
+        sample_elements["components"]["prod-context/flag"] = flag
+
+        numeric = filter_service.parse_filter_expression("component.account_id=12345")
+        result = filter_service.apply_filters(sample_elements, [numeric])
+        assert "prod-context/acct" in result["components"]
+
+        boolean = filter_service.parse_filter_expression(
+            "component.force_destroy=false"
+        )
+        result = filter_service.apply_filters(sample_elements, [boolean])
+        assert "prod-context/flag" in result["components"]
+
     def test_no_filter_returns_all_elements(self, filter_service, sample_elements):
         """Test that no filters returns all elements unchanged."""
         # Apply no filters
