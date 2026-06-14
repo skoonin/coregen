@@ -7,6 +7,7 @@ to test the full CLI workflow that users experience.
 import json
 import shutil
 import subprocess
+import sys
 from collections.abc import Generator
 from pathlib import Path
 
@@ -156,17 +157,12 @@ def run_detect_changes(
     keep_generated=False,
 ):
     """Run detect-changes command and return parsed output."""
-    # Try to use venv coregen, fall back to system PATH (for CI)
-    venv_coregen = Path(__file__).parent.parent.parent / ".venv" / "bin" / "coregen"
-
-    if venv_coregen.exists():
-        coregen_cmd = str(venv_coregen)
-    else:
-        # In CI or other environments, use coregen from PATH
-        coregen_cmd = "coregen"
-
+    # Invoke via the running interpreter so the installed package is used
+    # regardless of a bind-mounted .venv (Docker) or PATH layout (CI).
     cmd = [
-        coregen_cmd,
+        sys.executable,
+        "-m",
+        "coregen",
         "detect-changes",
         "--base-branch",
         base_branch,
