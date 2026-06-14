@@ -161,6 +161,23 @@ class GenerateService(ServicesBase):
             filtered_elements, include_inactive
         )
 
+        # When filters narrow the component set, drop contexts that no longer
+        # have any matching component. Otherwise the required-component and
+        # dependency pass below would re-introduce required components for
+        # contexts the filter excluded (the pattern path already yields scoped
+        # contexts; component-property filters prune components but not contexts).
+        if parsed_filters:
+            in_scope_contexts = {
+                comp_key.split("/", 1)[0]
+                for comp_key in filtered_elements.get("components", {})
+                if "/" in comp_key
+            }
+            filtered_elements["contexts"] = {
+                name: ctx
+                for name, ctx in filtered_elements.get("contexts", {}).items()
+                if name in in_scope_contexts
+            }
+
         # Entity type filtering is already handled by entity resolution service
         # No need to apply it again
 
