@@ -156,7 +156,9 @@ class GetService(ServicesBase):
 
         # Apply regular filters
         if parsed_filters:
-            matched_elements = self.apply_filters(matched_elements, parsed_filters)
+            matched_elements = self.filter_service.apply_filters_complete(
+                matched_elements, parsed_filters
+            )
 
         # Apply inactive filtering
         matched_elements = self.inactive_filter_service.filter_inactive(

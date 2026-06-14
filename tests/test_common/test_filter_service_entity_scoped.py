@@ -196,11 +196,12 @@ class TestFilterServiceEntityScoped:
         result = filter_service.parse_filter_expression("component.vars.version=3.14")
         assert result["value"] == "3.14"
 
-    def test_apply_filter_respects_entity_type(
+    def test_context_filter_cascades_to_components(
         self, filter_service, mock_config_access
     ):
-        """Test that filters are only applied to specified entity types."""
-        # Create test data
+        """A context filter keeps matching contexts and cascades to their
+        components, leaving workspaces untouched (complete-model semantics).
+        """
         elements = {
             "workspaces": {
                 "ws1": {"name": "test", "active": True},
@@ -211,12 +212,12 @@ class TestFilterServiceEntityScoped:
                 "ctx2": {"name": "prod", "environment": "prod"},
             },
             "components": {
-                "comp1": {"name": "test", "config": {"active": True}},
-                "comp2": {"name": "prod", "config": {"active": False}},
+                "ctx1/comp1": {"name": "test", "config": {"active": True}},
+                "ctx2/comp2": {"name": "prod", "config": {"active": False}},
             },
         }
 
-        # Filter for context.name=test - should only affect contexts
+        # Filter for context.name=test
         filter_spec = {
             "entity_type": "context",
             "property": "name",
@@ -224,12 +225,11 @@ class TestFilterServiceEntityScoped:
             "value": "test",
         }
 
-        result = filter_service.apply_filters(elements, [filter_spec])
+        result = filter_service.apply_filters_complete(elements, [filter_spec])
 
-        # Workspaces and components should be unchanged
+        # Workspaces are untouched by a context filter
         assert len(result["workspaces"]) == 2
-        assert len(result["components"]) == 2
-        # Only contexts should be filtered
-        assert len(result["contexts"]) == 1
-        assert "ctx1" in result["contexts"]
-        assert "ctx2" not in result["contexts"]
+        # Only the matching context remains, cascading to its components
+        assert list(result["contexts"]) == ["ctx1"]
+        assert "ctx1/comp1" in result["components"]
+        assert "ctx2/comp2" not in result["components"]

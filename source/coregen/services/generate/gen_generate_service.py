@@ -153,7 +153,9 @@ class GenerateService(ServicesBase):
 
         # Apply filters to matched elements
         if parsed_filters:
-            filtered_elements = self.apply_filters(matched_elements, parsed_filters)
+            filtered_elements = self.filter_service.apply_filters_complete(
+                matched_elements, parsed_filters
+            )
         else:
             filtered_elements = matched_elements
 

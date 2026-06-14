@@ -97,7 +97,7 @@ class TestFilterServiceIntegration:
         )
 
         # Apply filter
-        result = filter_service.apply_filters(sample_elements, [filter_spec])
+        result = filter_service.apply_filters_complete(sample_elements, [filter_spec])
 
         # Should keep the workspace
         assert "test-workspace" in result["workspaces"]
@@ -111,7 +111,7 @@ class TestFilterServiceIntegration:
         )
 
         # Apply filter
-        result = filter_service.apply_filters(sample_elements, [filter_spec])
+        result = filter_service.apply_filters_complete(sample_elements, [filter_spec])
 
         # Should keep the workspace with matching custom field
         assert "test-workspace" in result["workspaces"]
@@ -125,7 +125,7 @@ class TestFilterServiceIntegration:
         )
 
         # Apply filter
-        result = filter_service.apply_filters(sample_elements, [filter_spec])
+        result = filter_service.apply_filters_complete(sample_elements, [filter_spec])
 
         # Should only keep production context
         assert "prod-context" in result["contexts"]
@@ -146,7 +146,7 @@ class TestFilterServiceIntegration:
         )
 
         # Apply filter
-        result = filter_service.apply_filters(sample_elements, [filter_spec])
+        result = filter_service.apply_filters_complete(sample_elements, [filter_spec])
 
         # Should only keep dev context (which inherited workspace-archive)
         assert "dev-context" in result["contexts"]
@@ -161,7 +161,7 @@ class TestFilterServiceIntegration:
         )
 
         # Apply filter
-        result = filter_service.apply_filters(sample_elements, [filter_spec])
+        result = filter_service.apply_filters_complete(sample_elements, [filter_spec])
 
         # Should only keep active components (nginx)
         assert "prod-context/nginx" in result["components"]
@@ -177,7 +177,7 @@ class TestFilterServiceIntegration:
         )
 
         # Apply filter
-        result = filter_service.apply_filters(sample_elements, [filter_spec])
+        result = filter_service.apply_filters_complete(sample_elements, [filter_spec])
 
         # Should only keep components with priority >= 10 (nginx has priority 10)
         assert "prod-context/nginx" in result["components"]
@@ -202,19 +202,35 @@ class TestFilterServiceIntegration:
         sample_elements["components"]["prod-context/flag"] = flag
 
         numeric = filter_service.parse_filter_expression("component.account_id=12345")
-        result = filter_service.apply_filters(sample_elements, [numeric])
+        result = filter_service.apply_filters_complete(sample_elements, [numeric])
         assert "prod-context/acct" in result["components"]
 
         boolean = filter_service.parse_filter_expression(
             "component.force_destroy=false"
         )
-        result = filter_service.apply_filters(sample_elements, [boolean])
+        result = filter_service.apply_filters_complete(sample_elements, [boolean])
         assert "prod-context/flag" in result["components"]
+
+    def test_complete_path_maps_bare_config_field_names(
+        self, filter_service, sample_elements
+    ):
+        """Bare config field names (active/required/priority/for_commit) on a
+        component filter resolve to config.<field> in the complete path, matching
+        the raw path's mapping.
+        """
+        req = Component(name="req", config=ComponentConfig(active=True, required=True))
+        sample_elements["components"]["prod-context/req"] = req
+
+        spec = filter_service.parse_filter_expression("component.required=true")
+        result = filter_service.apply_filters_complete(sample_elements, [spec])
+
+        assert "prod-context/req" in result["components"]
+        assert "prod-context/nginx" not in result["components"]  # required is False
 
     def test_no_filter_returns_all_elements(self, filter_service, sample_elements):
         """Test that no filters returns all elements unchanged."""
         # Apply no filters
-        result = filter_service.apply_filters(sample_elements, [])
+        result = filter_service.apply_filters_complete(sample_elements, [])
 
         # Should return all elements
         assert len(result["workspaces"]) == 1
@@ -345,7 +361,7 @@ class TestFilterServiceIntegration:
 
         # Test filtering
         filter_spec = filter_service.parse_filter_expression(filter_expr)
-        result = filter_service.apply_filters(elements, [filter_spec])
+        result = filter_service.apply_filters_complete(elements, [filter_spec])
 
         # Verify results
         assert match_key in result[entity_key]
