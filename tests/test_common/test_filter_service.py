@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from coregen.common.filter_service import FilterService
+from coregen.common.filter_service import FilterService, FilterValidationError
 
 
 @pytest.fixture
@@ -246,6 +246,23 @@ class TestFilterService:
         # Test type conversion
         assert filter_service._compare_values(5, "=", "5") is True
         assert filter_service._compare_values(True, "=", "true") is True
+
+    def test_compare_values_numeric_op_with_nonnumeric_value(self, filter_service):
+        """An ordering comparison of a numeric field against a non-numeric value
+        raises a clear FilterValidationError instead of a TypeError.
+        """
+        for op in (">", "<", ">=", "<="):
+            with pytest.raises(FilterValidationError, match="non-numeric"):
+                filter_service._compare_values(5, op, "abc")
+        # equality against a non-numeric value is simply unequal, no raise
+        assert filter_service._compare_values(5, "=", "abc") is False
+        assert filter_service._compare_values(5, "!=", "abc") is True
+
+    def test_filter_validation_error_is_value_error(self):
+        """The filter error type subclasses ValueError so existing handlers and
+        ValueError-based tests keep working.
+        """
+        assert issubclass(FilterValidationError, ValueError)
 
     def test_compare_values_none_handling(self, filter_service):
         """Test _compare_values with None values."""

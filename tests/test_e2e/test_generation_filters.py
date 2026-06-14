@@ -223,17 +223,18 @@ def test_generate_rejects_pattern_filter_mismatch(
     """Filtering up the hierarchy is rejected with a clear error.
 
     A w/* (workspace) pattern with a component.* filter targets a more specific
-    entity than the pattern, so generate errors rather than silently returning
-    nothing. (A cm/* pattern filtered by context.*/workspace.* is valid
-    cross-entity scoping and is covered elsewhere.)
+    entity than the pattern, so generate errors with exit code 2 (input error),
+    matching get/check-pattern, rather than silently returning nothing. (A cm/*
+    pattern filtered by context.*/workspace.* is valid cross-entity scoping and
+    is covered elsewhere.)
     """
     result = run_cli_command(
         f"generate 'w/*' --filter 'component.config.active=true' "
         f"--config-file {gen_test_env['config_path']}",
         cwd=gen_test_env["root_dir"],
-        expected_code=1,
+        expected_code=2,
     )
-    assert result["success"], f"expected non-zero exit for mismatch; got: {result}"
+    assert result["success"], f"expected exit 2 for mismatch; got: {result}"
     combined = (result["stdout"] + result["stderr"]).lower()
     assert (
         "mismatch" in combined

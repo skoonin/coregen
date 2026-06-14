@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from coregen.cli.enums.enum_file_action import FileAction
 from coregen.common.console import Console
 from coregen.common.file_manager import FileManager
-from coregen.common.filter_service import FilterService
+from coregen.common.filter_service import FilterService, FilterValidationError
 from coregen.common.path_service import PathService
 from coregen.common.pattern.facade import PatternMatcher
 from coregen.common.workspace_initializer import WorkspaceInitializer
@@ -515,7 +515,7 @@ class ServicesBase(ServiceBase):
                     filter_expr.startswith(f"{entity}.")
                     and self._ENTITY_DEPTH[entity] > deepest_pattern
                 ):
-                    raise ValueError(
+                    raise FilterValidationError(
                         f"Pattern/filter mismatch: filter '{filter_expr}' targets "
                         f"{entity} fields, which are more specific than the selected "
                         f"pattern. Use a '{pres[0]}*' pattern to filter {entity} "

@@ -12,6 +12,7 @@ from coregen.cli.enums.enum_file_action import FileAction
 from coregen.cli.enums.enum_output_format import GenerateOutputFormat, OutputFormat
 from coregen.cli.global_options import GlobalOptions
 from coregen.common.console import Console
+from coregen.common.filter_service import FilterValidationError
 from coregen.common.logger import Logger
 from coregen.config_model.models.settings import get_settings
 from coregen.services.generate.gen_generate_service import GenerateService
@@ -81,7 +82,7 @@ class GenerateCommand:
             typer.Option(
                 "--filter",
                 "-f",
-                help="Filter by properties",
+                help="Filter by properties. A pattern can be filtered by its own or an ancestor entity's fields (e.g. cm/* with component.*, context.*, or workspace.*); filtering by a more specific entity is rejected.",
                 **generate_params,
             ),
         ] = None,
@@ -417,6 +418,12 @@ class GenerateCommand:
         except KeyboardInterrupt:
             self.console.warning("\nGeneration cancelled by user")
             raise typer.Exit(130)  # Standard exit code for SIGINT
+        except FilterValidationError as e:
+            # Invalid filter/pattern is user input error -> exit 2, matching the
+            # other commands and the documented exit-code contract.
+            self.logger.error(f"Invalid filter in generate command: {str(e)}")
+            self.console.error(f"Failed to generate files: {str(e)}")
+            raise typer.Exit(2)
         except Exception as e:
             self.logger.error(f"Unexpected error in generate command: {str(e)}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
