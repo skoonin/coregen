@@ -145,6 +145,7 @@ class GenerateService(ServicesBase):
         # Parse filters
         parsed_filters = []
         if filters:
+            self.validate_pattern_filter_compatibility(paths, filters)
             self.logger.debug(f"Applying filters: {filters}")
             for filter_expr in filters:
                 self.logger.debug(f"Parsing filter expression: {filter_expr}")

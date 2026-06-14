@@ -49,53 +49,6 @@ class GetService(ServicesBase):
         self.type_filter_service = TypeFilterService(logger=self.logger)
         self.logger.debug("Initialized GetService")
 
-    def _validate_pattern_filter_compatibility(
-        self, patterns: list[str], filters: list[str]
-    ) -> None:
-        """Validate that filters are compatible with pattern entity types.
-
-        Raises ValueError when pattern entity type doesn't match filter entity prefix.
-        This prevents confusing behavior where filters appear to be ignored.
-
-        Args:
-            patterns: List of patterns being used (e.g., "c/*", "cm/*")
-            filters: List of filter expressions being applied
-
-        Raises:
-            ValueError: When pattern and filter entity types are incompatible
-        """
-        for pattern in patterns:
-            # Parse pattern to get entity type
-            if pattern.startswith("c/") or pattern.startswith("context/"):
-                pattern_type = "context"
-            elif pattern.startswith("cm/") or pattern.startswith("component/"):
-                pattern_type = "component"
-            elif pattern.startswith("w/") or pattern.startswith("workspace/"):
-                pattern_type = "workspace"
-            else:
-                # Unknown or filesystem pattern, skip validation
-                continue
-
-            # Check each filter for entity prefix mismatch
-            for filter_expr in filters:
-                if pattern_type == "context" and "component." in filter_expr:
-                    raise ValueError(
-                        f"Pattern/filter mismatch: Pattern '{pattern}' filters context fields only.\n"
-                        f"Use 'cm/*' to filter components."
-                    )
-                elif pattern_type == "component" and "context." in filter_expr:
-                    raise ValueError(
-                        f"Pattern/filter mismatch: Pattern '{pattern}' filters component fields only.\n"
-                        f"Use 'c/*' to filter contexts."
-                    )
-                elif pattern_type == "workspace" and (
-                    "component." in filter_expr or "context." in filter_expr
-                ):
-                    raise ValueError(
-                        f"Pattern/filter mismatch: Pattern '{pattern}' filters workspace fields only.\n"
-                        f"Use 'cm/*' to filter component or 'c/*' to filter context fields."
-                    )
-
     def _process_json_input(
         self,
         json_string: str | None = None,
@@ -287,7 +240,7 @@ class GetService(ServicesBase):
 
                 # Validate pattern/filter compatibility
                 if patterns:
-                    self._validate_pattern_filter_compatibility(patterns, filters)
+                    self.validate_pattern_filter_compatibility(patterns, filters)
 
                 # Apply filters using complete model method
                 complete_model = self.filter_service.apply_filters_complete(

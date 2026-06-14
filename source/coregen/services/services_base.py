@@ -483,3 +483,45 @@ class ServicesBase(ServiceBase):
             Filter specification dictionary
         """
         return self.filter_service.parse_filter_expression(filter_string)
+
+    def validate_pattern_filter_compatibility(
+        self, patterns: list[str], filters: list[str]
+    ) -> None:
+        """Validate that filter entity prefixes match the pattern entity type.
+
+        Patterns and filters must target the same entity (cm/* with component.*,
+        c/* with context.*, w/* with workspace.*). A mismatch is almost always a
+        mistake that would otherwise silently yield no results.
+
+        Args:
+            patterns: Patterns being used (e.g. "cm/*", "c/*").
+            filters: Raw filter expressions being applied.
+
+        Raises:
+            ValueError: When a pattern and a filter target different entities.
+        """
+        prefixes = {
+            "context": ("c/", "context/"),
+            "component": ("cm/", "component/"),
+            "workspace": ("w/", "workspace/"),
+        }
+        # Entity types covered by the provided patterns. A filter is valid as long
+        # as at least one pattern targets its entity, so mixing (e.g. a context
+        # pattern and a component pattern) with a component filter is allowed.
+        pattern_types = {
+            etype
+            for pattern in patterns
+            for etype, pres in prefixes.items()
+            if pattern.startswith(pres)
+        }
+        if not pattern_types:
+            # Only unknown/filesystem patterns; nothing to validate against.
+            return
+        for filter_expr in filters:
+            for entity, pres in prefixes.items():
+                if filter_expr.startswith(f"{entity}.") and entity not in pattern_types:
+                    raise ValueError(
+                        f"Pattern/filter mismatch: filter '{filter_expr}' targets "
+                        f"{entity} fields, but no {entity} pattern was given. Use a "
+                        f"'{pres[0]}*' pattern to filter {entity} fields."
+                    )

@@ -494,7 +494,7 @@ class TestGetService:
 
             # Test c/* with component.* filter raises error
             with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*context fields only"
+                ValueError, match="Pattern/filter mismatch.*component fields"
             ):
                 service.get_elements(
                     patterns=["c/*"],
@@ -503,7 +503,7 @@ class TestGetService:
 
             # Test cm/* with context.* filter raises error
             with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*component fields only"
+                ValueError, match="Pattern/filter mismatch.*context fields"
             ):
                 service.get_elements(
                     patterns=["cm/*"],
@@ -512,7 +512,7 @@ class TestGetService:
 
             # Test w/* with nested entity filters raises error
             with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*workspace fields only"
+                ValueError, match="Pattern/filter mismatch.*component fields"
             ):
                 service.get_elements(
                     patterns=["w/*"],

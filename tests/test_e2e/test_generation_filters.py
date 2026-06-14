@@ -214,3 +214,25 @@ def test_generate_filter_does_not_leak_required_from_other_contexts(
         "required component from a filtered-OUT context leaked into generation; "
         f"output:\n{output}"
     )
+
+
+@pytest.mark.e2e
+def test_generate_rejects_pattern_filter_mismatch(
+    gen_test_env: dict[str, Any], run_cli_command
+):
+    """Mismatched filter entity types are rejected with a clear error.
+
+    A cm/* pattern with a context.* filter does not match; generate errors
+    rather than silently returning nothing, matching get's validation.
+    """
+    result = run_cli_command(
+        f"generate 'cm/*' --filter 'context.environment=dev' "
+        f"--config-file {gen_test_env['config_path']}",
+        cwd=gen_test_env["root_dir"],
+        expected_code=1,
+    )
+    assert result["success"], f"expected non-zero exit for mismatch; got: {result}"
+    combined = (result["stdout"] + result["stderr"]).lower()
+    assert (
+        "mismatch" in combined
+    ), f"expected a pattern/filter mismatch message; got: {combined}"
