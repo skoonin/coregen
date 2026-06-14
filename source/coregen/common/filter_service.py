@@ -62,49 +62,17 @@ class FilterService:
             filter_spec["entity_type"] = entity_type
             filter_string = rest
 
-        # Check for operator (check longer operators first for proper precedence)
-        if "!=" in filter_string:
-            property_name, value = filter_string.split("!=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "!="
-            filter_spec["value"] = value.strip()
-        elif "~=" in filter_string:
-            property_name, value = filter_string.split("~=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "~="
-            filter_spec["value"] = value.strip()
-        elif "=~" in filter_string:
-            property_name, value = filter_string.split("=~", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "=~"
-            filter_spec["value"] = value.strip()
-        elif ">=" in filter_string:
-            property_name, value = filter_string.split(">=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = ">="
-            filter_spec["value"] = value.strip()
-        elif "<=" in filter_string:
-            property_name, value = filter_string.split("<=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "<="
-            filter_spec["value"] = value.strip()
-        elif ">" in filter_string:
-            property_name, value = filter_string.split(">", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = ">"
-            filter_spec["value"] = value.strip()
-        elif "<" in filter_string:
-            property_name, value = filter_string.split("<", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "<"
-            filter_spec["value"] = value.strip()
-        elif "=" in filter_string:
-            property_name, value = filter_string.split("=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "="
-            filter_spec["value"] = value.strip()
+        # Detect the operator, longest first so e.g. ">=" wins over ">" and
+        # "!=" over "=".
+        for operator in ("!=", "~=", "=~", ">=", "<=", ">", "<", "="):
+            if operator in filter_string:
+                property_name, value = filter_string.split(operator, 1)
+                filter_spec["property"] = property_name.strip()
+                filter_spec["operator"] = operator
+                filter_spec["value"] = value.strip()
+                break
         else:
-            # Assume property=true if no operator
+            # No operator: treat as an existence check (property=true).
             filter_spec["property"] = filter_string.strip()
             filter_spec["operator"] = "="
             filter_spec["value"] = True
@@ -360,12 +328,9 @@ class FilterService:
             complete_model["contexts"] = filtered_contexts
 
             # Filter components belonging to filtered contexts
-            filtered_components = {}
-            for comp_key, component in complete_model["components"].items():
-                context_name = comp_key.split("/")[0]
-                if context_name in filtered_contexts:
-                    filtered_components[comp_key] = component
-            complete_model["components"] = filtered_components
+            self._prune_components_to_contexts(
+                complete_model, set(filtered_contexts.keys())
+            )
 
     def _filter_workspaces_complete(
         self,
@@ -406,18 +371,9 @@ class FilterService:
         complete_model["contexts"] = filtered_contexts
 
         # Cascade: remove components from filtered-out contexts
-        remaining_context_names = set(filtered_contexts.keys())
-
-        filtered_components = {}
-        for comp_key, component in complete_model["components"].items():
-            context_name = comp_key.split("/")[0]
-            if context_name in remaining_context_names:
-                filtered_components[comp_key] = component
-            else:
-                self.logger.debug(
-                    f" Removing component {comp_key} - context filtered out"
-                )
-        complete_model["components"] = filtered_components
+        self._prune_components_to_contexts(
+            complete_model, set(filtered_contexts.keys())
+        )
 
     def _filter_contexts_complete(
         self,
@@ -442,18 +398,19 @@ class FilterService:
         complete_model["contexts"] = filtered_contexts
 
         # Cascade: remove components from filtered-out contexts
-        remaining_context_names = set(filtered_contexts.keys())
+        self._prune_components_to_contexts(
+            complete_model, set(filtered_contexts.keys())
+        )
 
-        filtered_components = {}
-        for comp_key, component in complete_model["components"].items():
-            context_name = comp_key.split("/")[0]
-            if context_name in remaining_context_names:
-                filtered_components[comp_key] = component
-            else:
-                self.logger.debug(
-                    f" Removing component {comp_key} - context filtered out"
-                )
-        complete_model["components"] = filtered_components
+    def _prune_components_to_contexts(
+        self, complete_model: dict[str, dict[str, Any]], context_names: set[str]
+    ) -> None:
+        """Drop components whose owning context is no longer in the model."""
+        complete_model["components"] = {
+            comp_key: component
+            for comp_key, component in complete_model["components"].items()
+            if comp_key.split("/")[0] in context_names
+        }
 
     def _filter_components_complete(
         self,
@@ -729,12 +686,8 @@ class FilterService:
         Returns:
             Workspace name or None if not found
         """
-        # Use public methods instead of accessing protected members
-        for workspace in self.config_access.find_workspaces("*"):
-            if context.name in self.config_access.get_all_contexts(workspace):
-                return workspace.name
-
-        return None
+        workspace = self.config_access.find_workspace_for_context(context)
+        return workspace.name if workspace is not None else None
 
     def _compare_values(self, left: Any, operator: str, right: Any) -> bool:
         """Compare two values using the specified operator.
