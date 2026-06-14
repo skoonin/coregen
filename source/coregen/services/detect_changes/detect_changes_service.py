@@ -1034,7 +1034,12 @@ class DetectChangesService(ServicesBase):
                 self.logger.error(
                     f"Failed to parse filter expression '{filter_expr}': {e}"
                 )
-                raise ValueError(f"Invalid filter expression: {filter_expr}") from e
+                # Preserve the underlying cause (invalid regex, empty property)
+                # so detect-changes users get the same actionable message as the
+                # other commands.
+                raise ValueError(
+                    f"Invalid filter expression '{filter_expr}': {e}"
+                ) from e
 
         # Apply filters using FilterService.apply_filters_complete()
         # This handles all field access dynamically including custom fields
