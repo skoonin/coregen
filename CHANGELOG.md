@@ -9,6 +9,7 @@
 - `get` and `detect-changes` exit with code 1 (not 2) when a config file is not found, matching the documented exit-code contract and the `config` commands (#29)
 - `detect-changes` JSON/YAML output keeps stable `changes` and `deleted` arrays even when empty (#29)
 - Invalid filters — invalid regex, empty property name, or a filter that targets a more specific entity than the pattern (e.g. `c/*` with a `component.*` filter) — now exit non-zero with a clear message across `get`, `generate`, `detect-changes`, and `check-pattern` instead of silently returning no results. A pattern may still be filtered by its own or an ancestor entity's fields, e.g. `cm/*` with `context.*`/`workspace.*` (#34, #37)
+- `generate` now exits 2 (input error) for invalid filters/patterns, matching `get`/`check-pattern` and the documented exit-code contract (#39)
 
 ### Fixed
 
@@ -24,6 +25,7 @@
 - `generate --filter` no longer emits required components for contexts excluded by the filter (#34)
 - Filter exact match (`=`/`!=`) now works on string fields whose values look numeric or boolean, e.g. account IDs or `"false"` (#34)
 - Bare component config fields in filters (e.g. `component.required`) now resolve the same as `component.config.required` across all commands (#36)
+- A numeric ordering filter against a non-numeric value (e.g. `component.config.priority>abc`) now reports a clear error instead of a raw type error (#39)
 
 ### Security
 
