@@ -23,6 +23,7 @@
 - Writing generated output over a pre-existing empty directory no longer fails (#31)
 - `generate --filter` no longer emits required components for contexts excluded by the filter (#34)
 - Filter exact match (`=`/`!=`) now works on string fields whose values look numeric or boolean, e.g. account IDs or `"false"` (#34)
+- Bare component config fields in filters (e.g. `component.required`) now resolve the same as `component.config.required` across all commands (#36)
 
 ### Security
 

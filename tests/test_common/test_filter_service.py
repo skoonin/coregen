@@ -325,7 +325,7 @@ class TestFilterService:
             "components": {"comp1": {"name": "comp1"}},
         }
 
-        result = filter_service.apply_filters(elements, [])
+        result = filter_service.apply_filters_complete(elements, [])
 
         # Should return original elements unchanged
         assert len(result["workspaces"]) == 1
@@ -347,7 +347,7 @@ class TestFilterService:
         mock_config_access.find_workspaces.return_value = []
 
         filters = [{"property": "active", "operator": "=", "value": True}]
-        result = filter_service.apply_filters(elements, filters)
+        result = filter_service.apply_filters_complete(elements, filters)
 
         # The actual filtering logic will depend on the elements structure
         # This test mainly ensures the method can be called without errors

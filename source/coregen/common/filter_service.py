@@ -26,6 +26,15 @@ class FilterService:
         logger: Logger instance for this service
     """
 
+    # Bare component config field names mapped to their config.<field> path, so
+    # "component.required" resolves the same as "component.config.required".
+    _COMPONENT_FIELD_ALIASES = {
+        "active": "config.active",
+        "for_commit": "config.for_commit",
+        "required": "config.required",
+        "priority": "config.priority",
+    }
+
     def __init__(self, config_access: ConfigAccess, logger: Logger | None = None):
         """Initialize the filter service.
 
@@ -109,37 +118,6 @@ class FilterService:
             filter_spec["value"] = None
 
         return filter_spec
-
-    def apply_filters(
-        self, elements: dict[str, Any], filters: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        """Apply filters to configuration elements.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            filters: List of filter specifications
-
-        Returns:
-            Filtered dictionary of configuration elements
-        """
-        self.logger.debug(f"Applying filters: {filters}")
-
-        # If no filters, return elements as is
-        if not filters:
-            return elements
-
-        # Initialize result with original elements
-        result = {
-            "workspaces": elements.get("workspaces", {}).copy(),
-            "contexts": elements.get("contexts", {}).copy(),
-            "components": elements.get("components", {}).copy(),
-        }
-
-        # Apply each filter
-        for filter_spec in filters:
-            self._apply_filter(result, filter_spec)
-
-        return result
 
     def apply_filters_complete(
         self,
@@ -428,6 +406,10 @@ class FilterService:
             operator: Comparison operator
             value: Value to compare
         """
+        # Map common bare config field names to their config.<field> path, so
+        # e.g. "component.required" resolves the same as "component.config.required".
+        property_name = self._COMPONENT_FIELD_ALIASES.get(property_name, property_name)
+
         # Filter components directly
         filtered_components = {}
         for comp_key, component in complete_model["components"].items():
@@ -442,33 +424,6 @@ class FilterService:
                 )
 
         complete_model["components"] = filtered_components
-
-    def _apply_filter(
-        self, elements: dict[str, Any], filter_spec: dict[str, Any]
-    ) -> None:
-        """Apply a single filter to configuration elements.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            filter_spec: Filter specification
-        """
-        self.logger.debug(f"Applying filter: {filter_spec}")
-
-        # Extract filter components
-        entity_type = filter_spec.get("entity_type")
-        property_name = filter_spec["property"]
-        operator = filter_spec["operator"]
-        value = filter_spec["value"]
-
-        # Apply filter based on entity type
-        if entity_type == "workspace" or entity_type is None:
-            self._filter_workspaces(elements, property_name, operator, value)
-
-        if entity_type == "context" or entity_type is None:
-            self._filter_contexts(elements, property_name, operator, value)
-
-        if entity_type == "component" or entity_type is None:
-            self._filter_components(elements, property_name, operator, value)
 
     def _filter_entities_by_property(
         self,
@@ -505,128 +460,6 @@ class FilterService:
                 self.logger.debug(f"Filtering out {entity_type}: {name}")
 
         return filtered_entities
-
-    def _filter_workspaces(
-        self, elements: dict[str, Any], property_name: str, operator: str, value: Any
-    ) -> None:
-        """Filter workspaces based on property, operator, and value using native Pydantic.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            property_name: Name of the property to filter on
-            operator: Comparison operator
-            value: Value to compare against
-        """
-        # Filter workspaces using generic helper method
-        filtered_workspaces = self._filter_entities_by_property(
-            elements["workspaces"], property_name, operator, value, "workspace"
-        )
-
-        # Update elements with filtered workspaces
-        elements["workspaces"] = filtered_workspaces
-
-        # Remove contexts and components from filtered workspaces
-        remaining_workspace_names = set(filtered_workspaces.keys())
-
-        # Filter contexts to only those from remaining workspaces
-        filtered_contexts = {}
-        for context_name, context in elements["contexts"].items():
-            workspace_name = self.get_workspace_for_context(context)
-            if workspace_name in remaining_workspace_names:
-                filtered_contexts[context_name] = context
-        elements["contexts"] = filtered_contexts
-
-        # Filter components to only those from remaining contexts
-        remaining_context_names = set(filtered_contexts.keys())
-        filtered_components = {}
-        for component_key, component in elements["components"].items():
-            if "/" in component_key:
-                context_name = component_key.split("/", 1)[0]
-                if context_name in remaining_context_names:
-                    filtered_components[component_key] = component
-            else:
-                # Keep components without context association
-                filtered_components[component_key] = component
-        elements["components"] = filtered_components
-
-    def _filter_contexts(
-        self, elements: dict[str, Any], property_name: str, operator: str, value: Any
-    ) -> None:
-        """Filter contexts based on property, operator, and value using native Pydantic.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            property_name: Name of the property to filter on
-            operator: Comparison operator
-            value: Value to compare against
-        """
-        # Filter contexts using generic helper method
-        filtered_contexts = self._filter_entities_by_property(
-            elements["contexts"], property_name, operator, value, "context"
-        )
-
-        # Update elements with filtered contexts
-        elements["contexts"] = filtered_contexts
-
-        # Filter components to only those from remaining contexts
-        remaining_context_names = set(filtered_contexts.keys())
-        filtered_components = {}
-        for component_key, component in elements["components"].items():
-            if "/" in component_key:
-                context_name = component_key.split("/", 1)[0]
-                if context_name in remaining_context_names:
-                    filtered_components[component_key] = component
-            else:
-                # Keep components without context association
-                filtered_components[component_key] = component
-        elements["components"] = filtered_components
-
-    def _filter_components(
-        self, elements: dict[str, Any], property_name: str, operator: str, value: Any
-    ) -> None:
-        """Filter components based on property, operator, and value using native Pydantic.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            property_name: Name of the property to filter on
-            operator: Comparison operator
-            value: Value to compare against
-        """
-        self.logger.debug(
-            f"Filtering components with property: {property_name}, operator: {operator}, value: {value}"
-        )
-        self.logger.debug(
-            f"Components before filtering: {list(elements['components'].keys())}"
-        )
-
-        # Special handling for component properties that are commonly accessed
-        # Map common property names to their actual paths
-        property_mappings = {
-            "active": "config.active",
-            "for_commit": "config.for_commit",
-            "required": "config.required",
-            "priority": "config.priority",
-        }
-
-        # Check if we need to map the property name
-        if property_name in property_mappings:
-            actual_property = property_mappings[property_name]
-            self.logger.debug(
-                f"Mapping property '{property_name}' to '{actual_property}'"
-            )
-            property_name = actual_property
-
-        # Filter components using generic helper method
-        filtered_components = self._filter_entities_by_property(
-            elements["components"], property_name, operator, value, "component"
-        )
-
-        # Update elements with filtered components
-        elements["components"] = filtered_components
-
-        self.logger.debug(
-            f"Components after filtering: {list(filtered_components.keys())}"
-        )
 
     def _get_nested_attr(self, obj: Any, property_path: str) -> Any:
         """Get a nested property value from a Pydantic model using getattr chains.

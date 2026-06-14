@@ -111,8 +111,8 @@ class TestGenerateService:
             "components": {},
         }
 
-        # Setup empty apply_filters result to simulate filtering everything out
-        generate_service.apply_filters = MagicMock(
+        # Setup empty filter result to simulate filtering everything out
+        generate_service.filter_service.apply_filters_complete = MagicMock(
             return_value={
                 "workspaces": {"test-workspace": mock_workspace},
                 "contexts": {},
@@ -128,8 +128,8 @@ class TestGenerateService:
         # Verify process_path_patterns was called
         generate_service.process_path_patterns.assert_called_once()
 
-        # Verify apply_filters was called
-        generate_service.apply_filters.assert_called_once()
+        # Verify filtering was applied
+        generate_service.filter_service.apply_filters_complete.assert_called_once()
 
         # Since no components match, the result should have appropriate structure
         assert "generated_files" in result

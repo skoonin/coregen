@@ -204,13 +204,6 @@ def generate_service(
 
         # Inject our mocks
         service._config_access = mock_config_access
-        service.apply_filters = MagicMock(
-            return_value={
-                "workspaces": {"test-workspace": mock_workspace},
-                "contexts": {"test-context": mock_context},
-                "components": {"test-context/test-component": mock_component},
-            }
-        )
 
         # Set up process_path_patterns mock
         service.process_path_patterns = MagicMock()

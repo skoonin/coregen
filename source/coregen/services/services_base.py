@@ -459,20 +459,6 @@ class ServicesBase(ServiceBase):
                 else:
                     aggregated[key][sub_key] = sub_value
 
-    def apply_filters(
-        self, elements: dict[str, Any], filters: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        """Apply filters to configuration elements.
-
-        Args:
-            elements: Dictionary of configuration elements
-            filters: List of filter specifications
-
-        Returns:
-            Filtered dictionary of configuration elements
-        """
-        return self.filter_service.apply_filters(elements, filters)
-
     def parse_filter_expression(self, filter_string: str) -> dict[str, Any]:
         """Parse a filter expression into a structured filter specification.
 
