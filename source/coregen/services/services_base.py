@@ -470,44 +470,54 @@ class ServicesBase(ServiceBase):
         """
         return self.filter_service.parse_filter_expression(filter_string)
 
+    # Hierarchy depth (workspace > context > component). A pattern may be
+    # filtered by its own or an ancestor entity's fields -- e.g. a cm/ component
+    # pattern can be scoped by context.* or workspace.* (cross-entity scoping,
+    # which coregen itself emits in its matrix `command` field) -- but not by a
+    # descendant's fields (a workspace pattern cannot be filtered by component.*).
+    _ENTITY_DEPTH = {"workspace": 0, "context": 1, "component": 2}
+
     def validate_pattern_filter_compatibility(
         self, patterns: list[str], filters: list[str]
     ) -> None:
-        """Validate that filter entity prefixes match the pattern entity type.
+        """Validate that filter entity prefixes are compatible with the patterns.
 
-        Patterns and filters must target the same entity (cm/* with component.*,
-        c/* with context.*, w/* with workspace.*). A mismatch is almost always a
-        mistake that would otherwise silently yield no results.
+        A filter on an entity is allowed when at least one pattern selects that
+        entity or one of its descendants (filtering by self or an ancestor). A
+        filter targeting a more specific entity than any pattern is rejected,
+        since it cannot apply.
 
         Args:
             patterns: Patterns being used (e.g. "cm/*", "c/*").
             filters: Raw filter expressions being applied.
 
         Raises:
-            ValueError: When a pattern and a filter target different entities.
+            ValueError: When a filter targets a descendant of every pattern.
         """
         prefixes = {
             "context": ("c/", "context/"),
             "component": ("cm/", "component/"),
             "workspace": ("w/", "workspace/"),
         }
-        # Entity types covered by the provided patterns. A filter is valid as long
-        # as at least one pattern targets its entity, so mixing (e.g. a context
-        # pattern and a component pattern) with a component filter is allowed.
-        pattern_types = {
-            etype
+        pattern_depths = [
+            self._ENTITY_DEPTH[etype]
             for pattern in patterns
             for etype, pres in prefixes.items()
             if pattern.startswith(pres)
-        }
-        if not pattern_types:
+        ]
+        if not pattern_depths:
             # Only unknown/filesystem patterns; nothing to validate against.
             return
+        deepest_pattern = max(pattern_depths)
         for filter_expr in filters:
             for entity, pres in prefixes.items():
-                if filter_expr.startswith(f"{entity}.") and entity not in pattern_types:
+                if (
+                    filter_expr.startswith(f"{entity}.")
+                    and self._ENTITY_DEPTH[entity] > deepest_pattern
+                ):
                     raise ValueError(
                         f"Pattern/filter mismatch: filter '{filter_expr}' targets "
-                        f"{entity} fields, but no {entity} pattern was given. Use a "
-                        f"'{pres[0]}*' pattern to filter {entity} fields."
+                        f"{entity} fields, which are more specific than the selected "
+                        f"pattern. Use a '{pres[0]}*' pattern to filter {entity} "
+                        f"fields."
                     )

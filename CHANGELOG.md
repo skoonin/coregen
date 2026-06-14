@@ -8,7 +8,7 @@
 - `--quiet` no longer suppresses a command's primary result; it now silences only status and progress output (#29)
 - `get` and `detect-changes` exit with code 1 (not 2) when a config file is not found, matching the documented exit-code contract and the `config` commands (#29)
 - `detect-changes` JSON/YAML output keeps stable `changes` and `deleted` arrays even when empty (#29)
-- Invalid filters — invalid regex, empty property name, or a pattern/filter entity mismatch — now exit non-zero with a clear message across `get`, `generate`, `detect-changes`, and `check-pattern` instead of silently returning no results (#34)
+- Invalid filters — invalid regex, empty property name, or a filter that targets a more specific entity than the pattern (e.g. `c/*` with a `component.*` filter) — now exit non-zero with a clear message across `get`, `generate`, `detect-changes`, and `check-pattern` instead of silently returning no results. A pattern may still be filtered by its own or an ancestor entity's fields, e.g. `cm/*` with `context.*`/`workspace.*` (#34, #37)
 
 ### Fixed
 
