@@ -220,13 +220,15 @@ def test_generate_filter_does_not_leak_required_from_other_contexts(
 def test_generate_rejects_pattern_filter_mismatch(
     gen_test_env: dict[str, Any], run_cli_command
 ):
-    """Mismatched filter entity types are rejected with a clear error.
+    """Filtering up the hierarchy is rejected with a clear error.
 
-    A cm/* pattern with a context.* filter does not match; generate errors
-    rather than silently returning nothing, matching get's validation.
+    A w/* (workspace) pattern with a component.* filter targets a more specific
+    entity than the pattern, so generate errors rather than silently returning
+    nothing. (A cm/* pattern filtered by context.*/workspace.* is valid
+    cross-entity scoping and is covered elsewhere.)
     """
     result = run_cli_command(
-        f"generate 'cm/*' --filter 'context.environment=dev' "
+        f"generate 'w/*' --filter 'component.config.active=true' "
         f"--config-file {gen_test_env['config_path']}",
         cwd=gen_test_env["root_dir"],
         expected_code=1,
@@ -236,3 +238,24 @@ def test_generate_rejects_pattern_filter_mismatch(
     assert (
         "mismatch" in combined
     ), f"expected a pattern/filter mismatch message; got: {combined}"
+
+
+@pytest.mark.e2e
+def test_generate_allows_component_scoped_by_parent_filters(
+    gen_test_env: dict[str, Any], run_cli_command
+):
+    """A cm/ component pattern scoped by context.*/workspace.* filters is valid
+    cross-entity scoping -- this is the exact form coregen emits in its matrix
+    `command` field and the deploy/validate workflows feed back into generate.
+    """
+    result = run_cli_command(
+        f"generate 'cm/prometheus-name-test' "
+        f"--filter 'context.name=context-dev-test' --dry-run "
+        f"--config-file {gen_test_env['config_path']}",
+        cwd=gen_test_env["root_dir"],
+        expected_code=None,
+    )
+    combined = (result["stdout"] + result["stderr"]).lower()
+    assert (
+        "mismatch" not in combined
+    ), f"cross-entity scoping wrongly rejected: {combined}"

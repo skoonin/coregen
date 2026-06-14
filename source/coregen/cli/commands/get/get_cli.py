@@ -67,7 +67,7 @@ class Get(FormatValidationMixin):
             typer.Option(
                 "--filter",
                 "-f",
-                help="Filter expressions. Use cm/* pattern with component.* filters, c/* with context.* filters. Examples: 'component.config.priority=none', 'context.name~=aws' (regex). See docs/reference/filter-operators.md",
+                help="Filter expressions. A pattern can be filtered by its own or a parent entity's fields (e.g. cm/* with component.*, context.*, or workspace.*). Examples: 'component.config.priority=none', 'context.name~=aws' (regex). See docs/reference/filter-operators.md",
                 **option_params,
             ),
         ] = None,
@@ -201,7 +201,9 @@ class Get(FormatValidationMixin):
         """Get configuration elements by pattern or JSON input.
 
         Pattern prefixes: w/ (workspace), c/ (context), cm/ (component)
-        IMPORTANT: Pattern and filter entity types must match (cm/* with component.*, c/* with context.*).
+        A pattern can be filtered by its own or a parent entity's fields
+        (e.g. cm/* with component.*, context.*, or workspace.*); filtering by a
+        more specific entity than the pattern is rejected.
         All patterns MUST have prefixes. Use 'check-pattern' to test.
         """
         # Check for help flag explicitly

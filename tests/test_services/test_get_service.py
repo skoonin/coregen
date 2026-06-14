@@ -492,7 +492,7 @@ class TestGetService:
                 "components": {},
             }
 
-            # Test c/* with component.* filter raises error
+            # c/* with a component.* filter (filtering up) raises
             with pytest.raises(
                 ValueError, match="Pattern/filter mismatch.*component fields"
             ):
@@ -501,16 +501,7 @@ class TestGetService:
                     filters=["component.config.priority=none"],
                 )
 
-            # Test cm/* with context.* filter raises error
-            with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*context fields"
-            ):
-                service.get_elements(
-                    patterns=["cm/*"],
-                    filters=["context.environment=prod"],
-                )
-
-            # Test w/* with nested entity filters raises error
+            # w/* with a component.* filter (filtering up) raises
             with pytest.raises(
                 ValueError, match="Pattern/filter mismatch.*component fields"
             ):
@@ -518,3 +509,10 @@ class TestGetService:
                     patterns=["w/*"],
                     filters=["component.config.active=true"],
                 )
+
+            # cm/* with a context.* filter is cross-entity scoping, NOT a
+            # mismatch -- it must not raise.
+            service.get_elements(
+                patterns=["cm/*"],
+                filters=["context.environment=prod"],
+            )
