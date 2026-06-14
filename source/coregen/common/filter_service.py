@@ -109,6 +109,25 @@ class FilterService:
             filter_spec["operator"] = "="
             filter_spec["value"] = True
 
+        # Reject structurally malformed expressions at the boundary.
+        if not filter_spec["property"]:
+            raise ValueError(
+                f"Invalid filter expression: missing property name before "
+                f"'{filter_spec['operator']}'."
+            )
+
+        # Surface an invalid regex at parse time instead of deferring the failure
+        # to apply time where it is harder to attribute.
+        if filter_spec["operator"] in ("~=", "=~") and isinstance(
+            filter_spec["value"], str
+        ):
+            try:
+                re.compile(filter_spec["value"])
+            except re.error as e:
+                raise ValueError(
+                    f"Invalid regex pattern '{filter_spec['value']}': {e}"
+                ) from e
+
         # Convert only none/null to Python None (case-insensitive), for non-regex
         # operators. Int/bool/float coercion is intentionally NOT done here:
         # _compare_values coerces the value against each field's actual type,

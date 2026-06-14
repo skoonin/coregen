@@ -130,6 +130,22 @@ class TestFilterService:
         assert result["operator"] == "="
         assert result["value"] is None  # Converted to None for any field
 
+    def test_parse_filter_expression_empty_property_raises(self, filter_service):
+        """A filter with no property before the operator is malformed."""
+        import pytest
+
+        with pytest.raises(ValueError):
+            filter_service.parse_filter_expression("=value")
+
+    def test_parse_filter_expression_invalid_regex_raises(self, filter_service):
+        """An invalid regex pattern is reported at parse time, not silently
+        deferred to apply time.
+        """
+        import pytest
+
+        with pytest.raises(ValueError):
+            filter_service.parse_filter_expression("name~=[")
+
     def test_parse_filter_expression_entity_types(self, filter_service):
         """Test entity type parsing in filter expressions."""
         # Test workspace entity type
