@@ -52,7 +52,9 @@ Filter Syntax:
     --filter "entity.field>10"         # Comparison (>, <, >=, <=)
     --filter "entity.field~=pattern"   # Regex match (e.g., context.name~=aws)
 
-IMPORTANT: All patterns MUST have prefixes.
+IMPORTANT: All patterns MUST have prefixes. A pattern can be filtered by its own
+or an ancestor entity's fields (e.g. cm/* with component.*, context.*, or
+workspace.*); a filter on a more specific entity than the pattern is rejected.
 Related: Use 'coregen check-pattern' to test patterns before running this command.
 """,
         no_args_is_help=False,  # Disable automatic help to prevent conflict

@@ -12,6 +12,15 @@ from coregen.common.logger import Logger
 from coregen.config_model.access import ConfigAccess
 
 
+class FilterValidationError(ValueError):
+    """Raised when a filter expression or pattern/filter combination is invalid.
+
+    Subclasses ``ValueError`` so existing handlers keep catching it, while
+    letting the CLI distinguish user-input filter errors (exit 2) from runtime
+    errors (exit 1).
+    """
+
+
 class FilterService:
     """Service for parsing and applying filter expressions to configuration elements.
 
@@ -88,7 +97,7 @@ class FilterService:
 
         # Reject structurally malformed expressions at the boundary.
         if not filter_spec["property"]:
-            raise ValueError(
+            raise FilterValidationError(
                 f"Invalid filter expression: missing property name before "
                 f"'{filter_spec['operator']}'."
             )
@@ -101,7 +110,7 @@ class FilterService:
             try:
                 re.compile(filter_spec["value"])
             except re.error as e:
-                raise ValueError(
+                raise FilterValidationError(
                     f"Invalid regex pattern '{filter_spec['value']}': {e}"
                 ) from e
 
@@ -127,8 +136,7 @@ class FilterService:
         """
         Apply filters to complete model where all relationships are available.
 
-        This is the new method for the filter-first architecture. Unlike apply_filters(),
-        this method works with a complete model where all parent-child relationships
+        This works with a complete model where all parent-child relationships
         are intact, allowing filters like "context.environment" to work even when
         selecting components.
 
@@ -209,25 +217,14 @@ class FilterService:
             self._filter_workspaces_complete(
                 complete_model, property_name, operator, value
             )
-        self.logger.debug(
-            f" Applied filter to workspaces: {property_name} {operator} {value}"
-        )
-
         if entity_type == "context" or entity_type is None:
             self._filter_contexts_complete(
                 complete_model, property_name, operator, value
             )
-        self.logger.debug(
-            f" Applied filter to contexts: {property_name} {operator} {value}"
-        )
-
         if entity_type == "component" or entity_type is None:
             self._filter_components_complete(
                 complete_model, property_name, operator, value
             )
-        self.logger.debug(
-            f" Applied filter to components: {property_name} {operator} {value}"
-        )
 
     def _apply_cross_entity_filter_complete(
         self,
@@ -406,8 +403,6 @@ class FilterService:
             operator: Comparison operator
             value: Value to compare
         """
-        # Map common bare config field names to their config.<field> path, so
-        # e.g. "component.required" resolves the same as "component.config.required".
         property_name = self._COMPONENT_FIELD_ALIASES.get(property_name, property_name)
 
         # Filter components directly
@@ -588,8 +583,15 @@ class FilterService:
         elif isinstance(left, (int, float)) and isinstance(right, str):
             try:
                 right = type(left)(right)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                # An ordering comparison against a non-numeric value would raise
+                # a confusing TypeError (int > str). Surface a clear filter error.
+                if operator in (">", "<", ">=", "<="):
+                    raise FilterValidationError(
+                        f"Cannot compare numeric field with non-numeric "
+                        f"value '{right}' using '{operator}'."
+                    ) from e
+                # For = / != a numeric field never equals a non-numeric string.
 
         # Perform comparison
         if operator == "=":
