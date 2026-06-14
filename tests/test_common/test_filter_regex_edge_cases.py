@@ -293,15 +293,17 @@ class TestRegexFilterEdgeCases:
 
     # ===== Cross-Operator Consistency =====
 
-    def test_non_regex_operators_still_do_type_conversion(self, setup_regex_filter):
-        """Verify non-regex operators still perform type conversion."""
+    def test_non_regex_operators_coerce_at_compare_time(self, setup_regex_filter):
+        """Non-regex operators keep the value as a string at parse time;
+        _compare_values coerces the right operand to the left operand's type.
+        """
 
         filter_service = setup_regex_filter["filter_service"]
 
-        # Equality should convert types
+        # Parse keeps the value as a string (no parse-time coercion)
         result = filter_service.parse_filter_expression("priority=5")
         assert result["operator"] == "="
-        assert result["value"] == 5  # Should be int
+        assert result["value"] == "5"
 
         # Type conversion: right operand is converted to match left operand's type
         # So "5" (string) won't be converted when comparing with int 5

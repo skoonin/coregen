@@ -109,28 +109,17 @@ class FilterService:
             filter_spec["operator"] = "="
             filter_spec["value"] = True
 
-        # Convert value to appropriate type
-        if isinstance(filter_spec["value"], str):
-            # For regex operators, keep value as string (it's the pattern)
-            if filter_spec["operator"] not in ("~=", "=~"):
-                # For non-regex operators only: Convert "none" or "null" to Python None for any field (case-insensitive)
-                # Note: Regex operators preserve these as literal strings for pattern matching
-                if filter_spec["value"].lower() in ("none", "null"):
-                    filter_spec["value"] = None
-                # Convert to boolean
-                elif filter_spec["value"].lower() == "true":
-                    filter_spec["value"] = True
-                elif filter_spec["value"].lower() == "false":
-                    filter_spec["value"] = False
-                else:
-                    try:
-                        filter_spec["value"] = int(filter_spec["value"])
-                    except ValueError:
-                        try:
-                            if filter_spec["value"].count(".") == 1:
-                                filter_spec["value"] = float(filter_spec["value"])
-                        except ValueError:
-                            pass
+        # Convert only none/null to Python None (case-insensitive), for non-regex
+        # operators. Int/bool/float coercion is intentionally NOT done here:
+        # _compare_values coerces the value against each field's actual type,
+        # which also lets custom string fields whose values look numeric or
+        # boolean match. Regex operators keep none/null as literal patterns.
+        if (
+            isinstance(filter_spec["value"], str)
+            and filter_spec["operator"] not in ("~=", "=~")
+            and filter_spec["value"].lower() in ("none", "null")
+        ):
+            filter_spec["value"] = None
 
         return filter_spec
 
