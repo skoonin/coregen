@@ -68,15 +68,16 @@ def test_regex_basic_functionality(env_setup, run_cli_command):
 
 @pytest.mark.e2e
 def test_regex_invalid_pattern_handling(env_setup, run_cli_command):
-    """Test that invalid regex patterns don't crash but return no matches."""
+    """An invalid regex pattern is rejected with a clear error (exit 2) rather
+    than silently returning no matches.
+    """
     os.chdir(env_setup["root_dir"])
 
-    # Test invalid regex pattern (unclosed bracket)
+    # Invalid regex pattern (unclosed bracket)
     result = run_cli_command(
-        "get 'cm/*' --filter 'component.name~=[unclosed' --output json"
+        "get 'cm/*' --filter 'component.name~=[unclosed' --output json",
+        expected_code=2,
     )
-    assert result["success"], f"Command should not crash: {result['stderr']}"
-
-    data = json.loads(result["stdout"])
-    # Invalid pattern should return no matches (filter returns False)
-    assert len(data.get("components", {})) == 0
+    assert result["success"], f"Expected exit 2 for invalid regex: {result}"
+    combined = (result["stdout"] + result["stderr"]).lower()
+    assert "regex" in combined, f"Expected a regex error message; got: {combined}"

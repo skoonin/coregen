@@ -38,12 +38,10 @@ class GenerateService(ServicesBase):
         """
         super().__init__(**kwargs)
         # Store a reference to the config provider for easy access
-        self.provider = self.config_provider
         # Initialize filter services
         self.type_filter_service = TypeFilterService()
         self.inactive_filter_service = InactiveFilterService()
         # Track components per context for verbose mode summary
-        self._components_per_context: dict[str, int] = {}
         # Single debug log with essential service initialization info
         self.logger.debug(
             f"Initialized GenerateService with provider={hasattr(self, 'provider')}, "
@@ -82,12 +80,6 @@ class GenerateService(ServicesBase):
             return self._generate_files_impl(
                 paths, filters, include_inactive, type, skip_commit_dir, output_dir
             )
-        except TypeError as e:
-            import traceback
-
-            self.logger.error(f"TypeError in generate_files: {e}")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
         except Exception as e:
             import traceback
 
@@ -119,8 +111,8 @@ class GenerateService(ServicesBase):
             and len(matched_elements.get("contexts", {})) == 0
             and len(matched_elements.get("components", {})) == 0
         ):
-            if not self.quiet:
-                self.console.warning(f"No matches found for patterns: {paths}")
+            # The pattern matcher already warned about failed patterns; the
+            # empty-result error below is what the CLI renders
             self.logger.debug(
                 "Try using different patterns or check your configuration"
             )
@@ -153,6 +145,7 @@ class GenerateService(ServicesBase):
         # Parse filters
         parsed_filters = []
         if filters:
+            self.validate_pattern_filter_compatibility(paths, filters)
             self.logger.debug(f"Applying filters: {filters}")
             for filter_expr in filters:
                 self.logger.debug(f"Parsing filter expression: {filter_expr}")
@@ -160,7 +153,9 @@ class GenerateService(ServicesBase):
 
         # Apply filters to matched elements
         if parsed_filters:
-            filtered_elements = self.apply_filters(matched_elements, parsed_filters)
+            filtered_elements = self.filter_service.apply_filters_complete(
+                matched_elements, parsed_filters
+            )
         else:
             filtered_elements = matched_elements
 
@@ -168,6 +163,23 @@ class GenerateService(ServicesBase):
         filtered_elements = self.inactive_filter_service.filter_inactive(
             filtered_elements, include_inactive
         )
+
+        # When filters narrow the component set, drop contexts that no longer
+        # have any matching component. Otherwise the required-component and
+        # dependency pass below would re-introduce required components for
+        # contexts the filter excluded (the pattern path already yields scoped
+        # contexts; component-property filters prune components but not contexts).
+        if parsed_filters:
+            in_scope_contexts = {
+                comp_key.split("/", 1)[0]
+                for comp_key in filtered_elements.get("components", {})
+                if "/" in comp_key
+            }
+            filtered_elements["contexts"] = {
+                name: ctx
+                for name, ctx in filtered_elements.get("contexts", {}).items()
+                if name in in_scope_contexts
+            }
 
         # Entity type filtering is already handled by entity resolution service
         # No need to apply it again
@@ -211,7 +223,7 @@ class GenerateService(ServicesBase):
         filtered_elements = processed_elements
 
         # Generate files for each element
-        results: dict[str, list[Any]] = {
+        results: dict[str, Any] = {
             "generated_files": [],
             "skipped_files": [],
             "errors": [],
@@ -247,16 +259,6 @@ class GenerateService(ServicesBase):
                     )
                     # Dict maintains insertion order in Python 3.7+
                     context_components[component_name] = component
-
-            # Track for verbose mode
-            self._components_per_context[context_name] = len(context_components)
-
-            # Show context header in verbose mode
-            if self.verbose and context_components:
-                self.console.debug(f"Generating context: {context_name}")
-                self.console.debug(
-                    f"  Components: {', '.join(context_components.keys())}"
-                )
 
             # Generate files for this context and its components
             context_results = self._generate_for_context(
@@ -300,9 +302,9 @@ class GenerateService(ServicesBase):
 
         if self.dry_run:
             if not self.quiet:
-                self.console.info(
-                    f"[bright_white]Would delete {description}:[/] {directory}"
-                )
+                # No Rich markup in service strings: presentation belongs to the
+                # CLI layer, and markup corrupts non-text output channels
+                self.console.info(f"Would delete {description}: {directory}")
             self.logger.debug(f"Dry-run: Would delete {description} {directory}")
         else:
             try:
@@ -349,28 +351,25 @@ class GenerateService(ServicesBase):
         }
 
         # Get workspace for this context
-        workspace_name = None
-        for ws_name, contexts in self.config_access._context_lookup.items():
-            if context.name in contexts:
-                workspace_name = ws_name
-                break
-
-        if not workspace_name:
+        workspace = self.config_access.find_workspace_for_context(context)
+        if workspace is None:
             error_msg = f"Could not find workspace for context: {context.name}"
             self.console.error(error_msg)
             results["errors"].append(error_msg)
             return results
-
-        workspace = self.config_access._workspace_lookup[workspace_name]
+        workspace_name = workspace.name
 
         # Determine primary output directory
+        primary_output_dir: Path
         if output_dir_override:
             primary_output_dir = output_dir_override
         else:
             # Use workspace output_dir - resolve it relative to config root
             workspace_paths = self.path_service.resolve_workspace_paths(workspace)
-            primary_output_dir = workspace_paths.get("output_path")
-            if not primary_output_dir:
+            resolved_output_path = workspace_paths.get("output_path")
+            if resolved_output_path:
+                primary_output_dir = resolved_output_path
+            else:
                 # Fallback to default if output_path not resolved
                 primary_output_dir = (
                     self.path_service.resolver.root_path / workspace.output_dir
@@ -454,25 +453,6 @@ class GenerateService(ServicesBase):
             }
             results["component_details"].append(component_detail)
 
-            # Show status for this component after ALL locations are processed
-            if not self.quiet:
-                if self.verbose:
-                    # In verbose mode, show total file count across all locations
-                    if component_errors:
-                        self.console.debug(
-                            f"    ✗ {component_name}: {len(component_errors)} errors"
-                        )
-                    else:
-                        self.console.debug(
-                            f"    ✓ {component_name}: {component_file_count} files"
-                        )
-                else:
-                    # In normal mode, just show status
-                    if component_errors:
-                        self.console.error(f"  ✗ {context.name}/{component_name}")
-                    else:
-                        self.console.success(f"  ✓ {context.name}/{component_name}")
-
         return results
 
     def _process_dependencies_and_required(
@@ -501,11 +481,6 @@ class GenerateService(ServicesBase):
             "components": {},  # Will be rebuilt in sorted order
         }
 
-        # Store components with their sort order preserved
-        components_to_add: list[tuple[int, str, dict[str, Any]]] = (
-            []
-        )  # List of (sort_index, comp_key, component) tuples
-
         # First, find all components marked as 'required'
         required_added = 0
 
@@ -515,6 +490,7 @@ class GenerateService(ServicesBase):
         # Track all components we need to include (preserving order)
         all_components_ordered = []  # List of (context_name, comp_name, component)
         components_to_include = set()  # Set of comp_keys for quick lookup
+        component_by_key: dict[str, Component] = {}  # "ctx/name" -> component
 
         # Add existing components first (they're already filtered)
         for comp_key, comp in existing_components.items():
@@ -548,6 +524,7 @@ class GenerateService(ServicesBase):
 
                 # Add to ordered list for final assembly
                 all_components_ordered.append((context_name, comp_name, comp))
+                component_by_key[comp_key] = comp
 
                 # Check if this component is marked as required
                 if hasattr(comp.config, "required") and comp.config.required:
@@ -572,15 +549,8 @@ class GenerateService(ServicesBase):
             processed.add(comp_key)
 
             context_name = comp_key.split("/")[0]
-            comp_name = comp_key.split("/")[1]
 
-            # Find the component in our ordered list
-            component = None
-            for ctx_name, c_name, comp in all_components_ordered:
-                if ctx_name == context_name and c_name == comp_name:
-                    component = comp
-                    break
-
+            component = component_by_key.get(comp_key)
             if not component:
                 continue
 
@@ -645,20 +615,12 @@ class GenerateService(ServicesBase):
             "warnings": [],  # For template issues
         }
 
-        # Get workspace for this context
-        workspace_name = None
-        for ws_name, contexts in self.config_access._context_lookup.items():
-            if context.name in contexts:
-                workspace_name = ws_name
-                break
-
-        if not workspace_name:
+        # Guard: the context must belong to a known workspace
+        if self.config_access.find_workspace_for_context(context) is None:
             error_msg = f"Could not find workspace for context: {context.name}"
             self.console.error(error_msg)
             results["errors"].append(error_msg)
             return results
-
-        self.config_access._workspace_lookup[workspace_name]
 
         # Get the component path from the resolved paths - this MUST exist from config processing
         if not hasattr(component, "resolved_paths") or not component.resolved_paths.get(
@@ -708,6 +670,23 @@ class GenerateService(ServicesBase):
                         rel_path, template_context
                     )
                     dest_path = output_dir / processed_rel_path
+
+                    # Output containment: substituted values (context/component
+                    # names) could carry "../" or absolute segments and write
+                    # outside the output tree.
+                    resolved_dest = dest_path.resolve()
+                    resolved_out = output_dir.resolve()
+                    if (
+                        resolved_dest != resolved_out
+                        and resolved_out not in resolved_dest.parents
+                    ):
+                        error_msg = (
+                            f"Generated path escapes output directory: "
+                            f"{processed_rel_path}"
+                        )
+                        self.console.error(error_msg)
+                        results["errors"].append(error_msg)
+                        continue
 
                     # Create parent directories
                     self.file_manager.create_directory(dest_path.parent)
@@ -805,17 +784,10 @@ class GenerateService(ServicesBase):
     ) -> dict[str, Any]:
         """Create template context for rendering templates."""
         # Get workspace for this context
-        workspace_name = None
-        for ws_name, contexts in self.config_access._context_lookup.items():
-            if context.name in contexts:
-                workspace_name = ws_name
-                break
-
-        if not workspace_name:
+        workspace = self.config_access.find_workspace_for_context(context)
+        if workspace is None:
             self.console.error(f"Could not find workspace for context: {context.name}")
             return {}
-
-        workspace = self.config_access._workspace_lookup[workspace_name]
 
         # Use TemplateContextAdapter to create the complete template context
         adapter = TemplateContextAdapter(

@@ -197,27 +197,32 @@ class TestSkipValidation:
         assert "component-a" in context.components["app"]
 
     def test_normal_validation_catches_missing_dependencies(self):
-        """Test that Context dependency validation catches missing dependencies."""
+        """Dependency validation catches missing dependencies post-attachment.
+
+        Mirrors the production flow: the processor runs
+        _validate_component_dependencies after attaching components (the
+        model's after-validator no longer runs it against a partial set).
+        """
         # Create component A that depends on component B (which doesn't exist)
         dep = ComponentDependency(name="component-b")
         config_a = ComponentConfig(active=True, priority=2, dependencies=[dep])
         component_a = Component(name="component-a", config=config_a)
 
-        # Create context with normal validation
-        # This SHOULD raise error about missing dependency
+        context = Context(
+            name="test-context",
+            environment="test",
+            components={
+                "app": {
+                    "component-a": component_a,
+                }
+            },
+            skip_validation=False,
+        )
+
         with pytest.raises(
             ValueError, match="depends on missing component 'component-b'"
         ):
-            Context(
-                name="test-context",
-                environment="test",
-                components={
-                    "app": {
-                        "component-a": component_a,
-                    }
-                },
-                skip_validation=False,
-            )
+            context._validate_component_dependencies()
 
     def test_skip_validation_coerces_priority_strings(self):
         """Test that quoted priority strings are properly coerced to integers."""

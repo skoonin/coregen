@@ -1,12 +1,14 @@
 """Detect Changes command implementation V2 - Generation-based approach."""
 
-import sys
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 
-from coregen.cli.enums.enum_output_format import DetectChangesOutputFormat
+from coregen.cli.enums.enum_output_format import (
+    DetectChangesOutputFormat,
+    OutputFormat,
+)
 from coregen.cli.format_validation_mixin import FormatValidationMixin
 from coregen.cli.global_options import GlobalOptions
 from coregen.common.console import Console
@@ -322,9 +324,10 @@ class DetectChanges(FormatValidationMixin):
         elif self.options and self.options.get("deleted_only", False):
             data = {"deleted": data.get("deleted", [])}
 
-        # Handle empty results
+        # Keep the changes/deleted arrays present even when empty so machine
+        # consumers get a stable schema; the message is informational only
         if not data.get("changes") and not data.get("deleted"):
-            return {"message": "No changes detected"}
+            data["message"] = "No changes detected"
 
         return data
 
@@ -432,15 +435,8 @@ class DetectChanges(FormatValidationMixin):
                 hasattr(change, "component_dependencies")
                 and change.component_dependencies
             ):
-                # Extract names from dependency objects
-                dep_names = []
-                for dep in change.component_dependencies:
-                    if hasattr(dep, "name"):
-                        dep_names.append(dep.name)
-                    elif isinstance(dep, dict) and "name" in dep:
-                        dep_names.append(dep["name"])
-                    elif isinstance(dep, str):
-                        dep_names.append(dep)
+                # component_dependencies is a list of dependency names
+                dep_names = list(change.component_dependencies)
                 if dep_names:
                     deps = ", ".join(dep_names)
 
@@ -513,93 +509,75 @@ class DetectChanges(FormatValidationMixin):
 
             # Handle text output with custom formatter (domain-specific)
             if output_format == DetectChangesOutputFormat.TEXT:
-                if isinstance(result, DetectChangesResult):
-                    formatter = DetectChangesFormatter()
-                    output = formatter.format_text(
-                        result,
-                        name_only=(
-                            bool(self.options.get("name_only", False))
-                            if self.options
-                            else False
-                        ),
-                        changed_only=(
-                            bool(self.options.get("changed_only", False))
-                            if self.options
-                            else False
-                        ),
-                        deleted_only=(
-                            bool(self.options.get("deleted_only", False))
-                            if self.options
-                            else False
-                        ),
-                    )
-                    console.print(output)
-                else:
-                    # Legacy/compat: if service returned plain data, print it directly
-                    # Convert lists to newline-joined text for readability
-                    if isinstance(result, list):
-                        console.print("\n".join(str(i) for i in result))
-                    else:
-                        console.print(str(result))
+                formatter = DetectChangesFormatter()
+                output = formatter.format_text(
+                    result,
+                    name_only=(
+                        bool(self.options.get("name_only", False))
+                        if self.options
+                        else False
+                    ),
+                    changed_only=(
+                        bool(self.options.get("changed_only", False))
+                        if self.options
+                        else False
+                    ),
+                    deleted_only=(
+                        bool(self.options.get("deleted_only", False))
+                        if self.options
+                        else False
+                    ),
+                )
+                # Tag as the primary result so quiet mode never suppresses it
+                console.print(output, output_format=OutputFormat.TEXT)
             else:
                 # For structured formats (JSON, YAML, MATRIX, TABLE), use Console pipeline
-                from coregen.cli.enums.enum_output_format import OutputFormat
-
                 if output_format == DetectChangesOutputFormat.JSON:
-                    if isinstance(result, DetectChangesResult):
-                        data = self._prepare_output_data(result)
-                    else:
-                        # Pass through legacy list/dict results directly  # type: ignore[unreachable]
-                        data = result  # type: ignore[unreachable]
-                    console.print(data, output_format=OutputFormat.JSON)
+                    console.print(
+                        self._prepare_output_data(result),
+                        output_format=OutputFormat.JSON,
+                    )
                 elif output_format == DetectChangesOutputFormat.YAML:
-                    if isinstance(result, DetectChangesResult):
-                        data = self._prepare_output_data(result)
-                    else:
-                        data = result  # type: ignore[unreachable]
-                    console.print(data, output_format=OutputFormat.YAML)
+                    console.print(
+                        self._prepare_output_data(result),
+                        output_format=OutputFormat.YAML,
+                    )
                 elif output_format == DetectChangesOutputFormat.MATRIX:
-                    if isinstance(result, DetectChangesResult):
-                        matrix_data = result.to_matrix_format()
-                        # Apply filtering for matrix output
-                        if self.options and self.options.get("changed_only", False):
-                            matrix_data["include"] = [
-                                c
-                                for c in matrix_data["include"]
-                                if c["status"] == "changed"
-                            ]
-                        elif self.options and self.options.get("deleted_only", False):
-                            matrix_data["include"] = [
-                                c
-                                for c in matrix_data["include"]
-                                if c["status"] == "deleted"
-                            ]
-                    else:
-                        # Allow list/dict to flow into matrix formatter  # type: ignore[unreachable]
-                        matrix_data = result  # type: ignore[unreachable]
+                    matrix_data = result.to_matrix_format()
+                    # Apply filtering for matrix output
+                    if self.options and self.options.get("changed_only", False):
+                        matrix_data["include"] = [
+                            c
+                            for c in matrix_data["include"]
+                            if c["status"] == "changed"
+                        ]
+                    elif self.options and self.options.get("deleted_only", False):
+                        matrix_data["include"] = [
+                            c
+                            for c in matrix_data["include"]
+                            if c["status"] == "deleted"
+                        ]
                     console.print(matrix_data, output_format=OutputFormat.MATRIX)
                 elif output_format == DetectChangesOutputFormat.TABLE:
-                    if isinstance(result, DetectChangesResult):
-                        table_data = self._prepare_table_data(result)
-                    else:
-                        # Simple fallback: list -> single-column Name table; dict -> key/value rows  # type: ignore[unreachable]
-                        if isinstance(result, list):  # type: ignore[unreachable]
-                            table_data = [["Name"], *[[str(x)] for x in result]]
-                        elif isinstance(result, dict):
-                            table_data = [
-                                ["Key", "Value"],
-                                *[[str(k), str(v)] for k, v in result.items()],
-                            ]
-                        else:
-                            table_data = [["Value"], [str(result)]]
-                    console.print(table_data, output_format=OutputFormat.TABLE)
+                    console.print(
+                        self._prepare_table_data(result),
+                        output_format=OutputFormat.TABLE,
+                    )
 
             self.logger.debug("Detect-changes command completed successfully")
 
+        except typer.Exit:
+            raise
+        except FileNotFoundError as e:
+            # Config/file errors are general errors (exit 1) per the documented
+            # contract; exit 2 is reserved for input/validation errors
+            console.error(f"Failed to detect changes: {str(e)}")
+            self.logger.exception("Error during detect-changes command execution:")
+            raise typer.Exit(1)
         except Exception as e:
             console.error(f"Failed to detect changes: {str(e)}")
             self.logger.exception("Error during detect-changes command execution:")
-            sys.exit(2)
+            raise typer.Exit(2)
         finally:
             # Always reset output format
             console.set_output_format(None)

@@ -103,8 +103,7 @@ def test_create_test_context(env_setup):
 def create_default_values_file(values_file):
     """Create a default values file with standard content."""
     with open(values_file, "w") as f:
-        f.write(
-            """context:
+        f.write("""context:
   name: e2e-test
   environment: e2e
   active: true
@@ -117,8 +116,7 @@ def create_default_values_file(values_file):
         required: false
         generated: true
         dependencies: []
-"""
-        )
+""")
 
 
 @pytest.mark.e2e

@@ -249,63 +249,6 @@ class TestNameFilterService:
         assert result == "context/component"
 
     # ========================================================================
-    # merge_component_names Tests
-    # ========================================================================
-
-    def test_merge_component_names_from_multiple_datasets(
-        self, service: NameFilterService
-    ):
-        """Test merge_component_names merges and deduplicates from multiple sources."""
-        data1 = {"components": ["component1", "component2"]}
-        data2 = {"components": ["component2", "component3"]}
-        data3 = {"components": ["component3", "component4"]}
-
-        result = service.merge_component_names(data1, data2, data3)
-
-        assert len(result) == 4
-        assert result == ["component1", "component2", "component3", "component4"]
-
-    def test_merge_component_names_from_dict_format(self, service: NameFilterService):
-        """Test merge_component_names handles dict format data."""
-        data1 = {
-            "components": {
-                "context1/component1": {"name": "component1"},
-                "context1/component2": {"name": "component2"},
-            }
-        }
-        data2 = {
-            "components": {
-                "context2/component2": {"name": "component2"},
-                "context2/component3": {"name": "component3"},
-            }
-        }
-
-        result = service.merge_component_names(data1, data2)
-
-        # Should extract and deduplicate component names
-        assert len(result) == 3
-        assert "component1" in result
-        assert "component2" in result
-        assert "component3" in result
-
-    def test_merge_component_names_empty_datasets(self, service: NameFilterService):
-        """Test merge_component_names handles empty datasets."""
-        result = service.merge_component_names({}, {}, {})
-
-        assert result == []
-
-    def test_merge_component_names_missing_components_key(
-        self, service: NameFilterService
-    ):
-        """Test merge_component_names handles datasets without components key."""
-        data1 = {"workspaces": ["ws1"]}
-        data2 = {"components": ["component1"]}
-
-        result = service.merge_component_names(data1, data2)
-
-        assert result == ["component1"]
-
-    # ========================================================================
     # transform_for_output Tests
     # ========================================================================
 

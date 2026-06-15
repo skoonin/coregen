@@ -144,7 +144,7 @@ class TestDetectChangesFiltering:
             },
         }
 
-        filtered_result = detect_changes_service._apply_filters_to_results(
+        detect_changes_service._apply_filters_to_results(
             result, ["component.config.priority=2"], verbose=False
         )
 

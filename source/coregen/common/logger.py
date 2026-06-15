@@ -106,7 +106,7 @@ class Logger:
                 handlers=[RichHandler(console=Console.get_log_console())],
             )
 
-    def __init__(self, name: str = None):
+    def __init__(self, name: str | None = None):
         """Initialize logger with name and Rich console integration.
 
         Args:
@@ -114,11 +114,14 @@ class Logger:
         """
         # Auto-detect name from calling context if not provided
         if name is None:
-            frame = inspect.currentframe().f_back
-            if "self" in frame.f_locals:
-                name = frame.f_locals["self"].__class__.__name__
+            frame = inspect.currentframe()
+            if frame and frame.f_back:
+                if "self" in frame.f_back.f_locals:
+                    name = frame.f_back.f_locals["self"].__class__.__name__
+                else:
+                    name = frame.f_back.f_globals["__name__"].split(".")[-1]
             else:
-                name = frame.f_globals["__name__"].split(".")[-1]
+                name = __name__
 
         # Get or create logger - logging.getLogger handles singleton behavior
         self._logger = logging.getLogger(name)

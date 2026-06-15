@@ -13,9 +13,9 @@ from coregen.common.console import Console
 class GenerateTableFormatter:
     """Formatter for table output of generate command."""
 
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: type[Console] | None = None):
         """Initialize the formatter."""
-        self.console = console or Console()
+        self.console = console or Console
 
     def format(
         self,
@@ -106,9 +106,9 @@ class GenerateTableFormatter:
 class GenerateTextFormatter:
     """Formatter for text output of generate command."""
 
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: type[Console] | None = None):
         """Initialize the formatter."""
-        self.console = console or Console()
+        self.console = console or Console
 
     def format(
         self,
@@ -123,6 +123,14 @@ class GenerateTextFormatter:
         unique_errors: list[str],
     ) -> None:
         """Format and display results in text format."""
+        # Per-component status, in the order the service generated them.
+        for detail in results.get("component_details", []):
+            label = f"  {'✓' if detail['status'] else '✗'} {detail['context']}/{detail['component']}"
+            if detail["status"]:
+                self.console.success(label)
+            else:
+                self.console.error(label)
+
         self.console.info("\n")
         self.console.info("Generation Summary:")
         self.console.info(f"  Contexts processed: {num_contexts}")
@@ -154,9 +162,9 @@ class GenerateTextFormatter:
 class GenerateFormatter:
     """Main formatter that delegates to specific formatters."""
 
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: type[Console] | None = None):
         """Initialize the formatter."""
-        self.console = console or Console()
+        self.console = console or Console
         self.table_formatter = GenerateTableFormatter(console)
         self.text_formatter = GenerateTextFormatter(console)
 

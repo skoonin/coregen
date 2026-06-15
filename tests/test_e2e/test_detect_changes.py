@@ -38,27 +38,22 @@ def detect_changes_env(temp_test_dir: Path, test_git_repo: Path) -> dict[str, An
     component_dir.mkdir(exist_ok=True)
 
     # Create a context file since context_type is "component"
-    (component_dir / "config.yaml").write_text(
-        """component:
+    (component_dir / "config.yaml").write_text("""component:
   name: test-component
   environment: test
   active: true
-"""
-    )
+""")
 
-    (component_dir / "deployment.yaml").write_text(
-        """
+    (component_dir / "deployment.yaml").write_text("""
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-component
 spec:
   replicas: 1
-"""
-    )
+""")
 
-    (component_dir / "service.yaml").write_text(
-        """
+    (component_dir / "service.yaml").write_text("""
 apiVersion: v1
 kind: Service
 metadata:
@@ -66,21 +61,18 @@ metadata:
 spec:
   ports:
   - port: 80
-"""
-    )
+""")
 
     # Create a minimal config file for the test
     config_yaml = test_git_repo / ".cgconfig.yaml"
-    config_yaml.write_text(
-        """
+    config_yaml.write_text("""
 workspaces:
   - name: test
     workspace_dir: .
     context_type: component
     context_config_files:
       - component/*.yaml
-    """
-    )
+    """)
 
     # Commit the initial state with config file
     os.chdir(test_git_repo)
@@ -112,8 +104,7 @@ def test_detect_basic_changes(
 
     # 2. Add a new file
     new_file = detect_changes_env["component_dir"] / "configmap.yaml"
-    new_file.write_text(
-        """
+    new_file.write_text("""
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -123,8 +114,7 @@ data:
     {
       "key": "value"
     }
-"""
-    )
+""")
 
     # Add the new file to git to track it, but don't commit yet
     os.system("git add component/configmap.yaml")
@@ -138,9 +128,13 @@ data:
     # we should either see components detected or at least a meaningful output
     output = result["stdout"]
     # The service should either detect changes or report "No changes detected"
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
 
 
 @pytest.mark.e2e
@@ -175,9 +169,13 @@ def test_detect_changes_with_base_reference(
     # Should detect changes or report no changes
     output = result["stdout"]
     # For a realistic test, we should expect some meaningful output
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
 
 
 @pytest.mark.e2e
@@ -198,9 +196,13 @@ def test_detect_deleted_files(
     assert result["success"]
     # Should detect changes or report no changes
     output = result["stdout"]
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"
 
 
 @pytest.mark.e2e
@@ -229,33 +231,27 @@ def test_detect_changes_with_rules(
     os.system("git add -A && git commit -m 'Clean slate for rules test'")
 
     # Create different types of files
-    (detect_changes_env["component_dir"] / "deployment.yaml").write_text(
-        """
+    (detect_changes_env["component_dir"] / "deployment.yaml").write_text("""
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-component
 spec:
   replicas: 2
-    """
-    )
+    """)
 
-    (detect_changes_env["component_dir"] / "README.md").write_text(
-        """
+    (detect_changes_env["component_dir"] / "README.md").write_text("""
 # Test Component
 
 Updated documentation for testing rules.
-    """
-    )
+    """)
 
-    (detect_changes_env["component_dir"] / "variables.tf").write_text(
-        """
+    (detect_changes_env["component_dir"] / "variables.tf").write_text("""
 variable "namespace" {
   type = string
   default = "test"
 }
-    """
-    )
+    """)
 
     # Run detect-changes command
     result = run_cli_command(
@@ -266,6 +262,10 @@ variable "namespace" {
     assert result["success"]
     # Should detect changes or report no changes
     output = result["stdout"]
-    assert (
-        "test-component" in output or "No changes detected" in output
-    ), f"Unexpected output: {output}"
+    # The fixture config defines a context with NO components, and
+    # detect-changes diffs GENERATED OUTPUT (not raw files), so the correct
+    # result here is "No changes detected" regardless of the raw-file edits
+    # above. True change-detection behavior is covered by
+    # tests/test_services/test_detect_changes_integration.py. The previous
+    # either/or assertion accepted both outcomes and tested nothing.
+    assert "No changes detected" in output, f"Unexpected output: {output}"

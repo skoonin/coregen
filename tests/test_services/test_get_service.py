@@ -471,7 +471,7 @@ class TestGetService:
                 mock_pattern_selector.return_value = mock_selector_instance
 
                 # Call get_elements with filters
-                result = service.get_elements(
+                service.get_elements(
                     patterns=["component/**"],
                     filters=["active=true"],
                     include_inactive=False,
@@ -492,29 +492,27 @@ class TestGetService:
                 "components": {},
             }
 
-            # Test c/* with component.* filter raises error
+            # c/* with a component.* filter (filtering up) raises
             with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*context fields only"
+                ValueError, match="Pattern/filter mismatch.*component fields"
             ):
                 service.get_elements(
                     patterns=["c/*"],
                     filters=["component.config.priority=none"],
                 )
 
-            # Test cm/* with context.* filter raises error
+            # w/* with a component.* filter (filtering up) raises
             with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*component fields only"
-            ):
-                service.get_elements(
-                    patterns=["cm/*"],
-                    filters=["context.environment=prod"],
-                )
-
-            # Test w/* with nested entity filters raises error
-            with pytest.raises(
-                ValueError, match="Pattern/filter mismatch.*workspace fields only"
+                ValueError, match="Pattern/filter mismatch.*component fields"
             ):
                 service.get_elements(
                     patterns=["w/*"],
                     filters=["component.config.active=true"],
                 )
+
+            # cm/* with a context.* filter is cross-entity scoping, NOT a
+            # mismatch -- it must not raise.
+            service.get_elements(
+                patterns=["cm/*"],
+                filters=["context.environment=prod"],
+            )

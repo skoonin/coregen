@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from coregen import __version__
+
 
 @pytest.mark.e2e
 def test_config_init_with_subprocess(temp_test_dir):
@@ -102,4 +104,6 @@ def test_cli_version_with_subprocess():
 
     # Check success
     assert result.returncode == 0, "Version command failed"
-    assert "1.0.6" in result.stdout, "Version output missing expected version string"
+    assert (
+        __version__ in result.stdout
+    ), "Version output missing expected version string"

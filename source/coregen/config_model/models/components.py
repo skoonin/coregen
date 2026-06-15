@@ -38,13 +38,15 @@ class ComponentDependency(BaseModel):
     @field_validator("path")
     @classmethod
     def validate_path(cls, v: str | None) -> str | None:
-        """Validate that path exists if provided."""
-        if v is not None:
-            from pathlib import Path
+        """Validate path syntax only.
 
-            path = Path(v)
-            if not path.exists():
-                raise ValueError(f"Path '{v}' does not exist")
+        Existence is intentionally NOT checked here: dependency paths are
+        relative to the context directory, which is resolved after model
+        construction, so a filesystem check at validation time runs against
+        the CWD and rejects valid configs.
+        """
+        if v is not None and not v.strip():
+            raise ValueError("path cannot be empty")
         return v
 
 
@@ -201,46 +203,26 @@ class Component(BaseModel):
             for dep in self.config.dependencies
         ]
 
-    def has_dependency(self, component_name: str) -> bool:
-        """Check if this component depends on another component.
-
-        Args:
-            component_name: Name of the component to check for
-
-        Returns:
-            True if this component depends on the specified component
-        """
-        # Access dependencies directly from the config object
-        return any(dep.name == component_name for dep in self.config.dependencies)
-
-    def add_dependency(self, dependency: ComponentDependency) -> None:
-        """Add a dependency to this component if it doesn't already exist.
-
-        Args:
-            dependency: The dependency to add
-        """
-        # Check if dependency already exists
-        if not any(dep.name == dependency.name for dep in self.config.dependencies):
-            self.config.dependencies.append(dependency)
-
-    def sort_key(self) -> tuple[str, int, str]:
+    def sort_key(self) -> tuple[str, bool, int, str]:
         """Return sort key for natural ordering.
 
         Components are sorted by:
-        1. Context name (if available)
-        2. Priority (0 is highest, None becomes 999)
+        1. Context (the real field; empty string when unset)
+        2. Priority (0 is highest; null priority sorts last via the is-None flag)
         3. Component name (for stable ordering)
 
         Returns:
             Tuple for sorting
         """
+        priority = self.config.priority
         return (
-            getattr(self, "context_name", ""),
-            self.config.priority if self.config.priority is not None else 999,
+            self.context or "",
+            priority is None,
+            priority if priority is not None else 0,
             self.name,
         )
 
-    def __lt__(self, other: Component) -> bool:
+    def __lt__(self, other: object) -> bool:
         """Compare components for natural ordering.
 
         Args:
@@ -251,17 +233,21 @@ class Component(BaseModel):
         """
         if not isinstance(other, Component):
             return NotImplemented
-        return self.sort_key() < other.sort_key()  # type: ignore[unreachable]
+        return self.sort_key() < other.sort_key()
 
     def __eq__(self, other: object) -> bool:
-        """Check equality based on component name.
+        """Check equality on the same identity as ordering.
+
+        Uses (context, name) so equality stays consistent with sort_key under
+        @total_ordering: two same-named components in different contexts are
+        distinct rather than equal.
 
         Args:
             other: Another object to compare with
 
         Returns:
-            True if components have the same name
+            True if components share the same context and name
         """
         if not isinstance(other, Component):
             return NotImplemented
-        return self.name == other.name
+        return (self.context, self.name) == (other.context, other.name)

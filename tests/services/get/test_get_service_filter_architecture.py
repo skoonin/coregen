@@ -71,16 +71,13 @@ class TestFilterArchitecture:
             assert isinstance(result, dict)
 
     def test_cross_entity_filters_capability(self, get_service: GetService) -> None:
-        """Test that cross-entity filters now raise validation errors."""
-        # Cross-entity filtering (cm/* with context.*) is no longer supported
-        # This should now raise a ValueError
-        patterns = ["cm/*"]
-        filters = ["context.environment=prod"]
-
-        with pytest.raises(
-            ValueError, match="Pattern/filter mismatch.*component fields only"
-        ):
-            self.run_filter_test(get_service, patterns, filters)
+        """Cross-entity scoping: a component pattern can be filtered by a parent
+        entity's fields (e.g. context.*) without raising.
+        """
+        result = self.run_filter_test(
+            get_service, ["cm/*"], ["context.environment=prod"]
+        )
+        assert isinstance(result, dict)
 
     def test_multiple_filters(self, get_service: GetService) -> None:
         """Test multiple filters applied together."""

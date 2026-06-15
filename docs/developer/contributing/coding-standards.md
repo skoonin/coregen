@@ -91,7 +91,7 @@ source/coregen/
 ├── common/               # Shared utilities and services
 ├── config_model/         # Configuration data models
 ├── services/            # Business logic and service layer
-└── main.py              # Application entry point
+└── __main__.py          # Application entry point
 ```
 
 ### Module Organization

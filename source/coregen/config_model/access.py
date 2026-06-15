@@ -8,6 +8,7 @@ configuration elements with pattern matching capabilities.
 import fnmatch
 from typing import Any
 
+from coregen.common.logger import Logger
 from coregen.common.path_service import PathService
 from coregen.config_model.models.components import Component
 from coregen.config_model.models.config import CoregenConfig
@@ -57,6 +58,7 @@ class ConfigAccess:
             self.workspaces = config_or_workspaces
 
         self.path_service = path_service
+        self.logger = Logger(__name__)
 
         # Build lookup tables for faster access
         self._workspace_lookup: dict[str, WorkspaceConfig] = {}
@@ -65,6 +67,13 @@ class ConfigAccess:
 
         # Additional lookup for environments to contexts
         self._environment_lookup: dict[str, list[Context]] = {}
+
+        # Maps a component object's id() to its owning context for O(1) lookup
+        self._component_owner_lookup: dict[int, Context] = {}
+
+        # Maps a context object's id() to its owning workspace for O(1) lookup.
+        # Identity-keyed because context names are not unique across workspaces.
+        self._context_owner_lookup: dict[int, WorkspaceConfig] = {}
 
         self._build_lookup_tables()
 
@@ -83,12 +92,14 @@ class ConfigAccess:
             for context_name, context in contexts.items():
                 # Add context to lookup
                 self._context_lookup[workspace.name][context_name] = context
+                self._context_owner_lookup[id(context)] = workspace
 
                 # Add to environment lookup
                 env = context.environment
-                if env not in self._environment_lookup:
-                    self._environment_lookup[env] = []
-                self._environment_lookup[env].append(context)
+                if env is not None:
+                    if env not in self._environment_lookup:
+                        self._environment_lookup[env] = []
+                    self._environment_lookup[env].append(context)
 
                 # Initialize component lookup for this context
                 self._component_lookup[workspace.name][context_name] = {}
@@ -102,6 +113,9 @@ class ConfigAccess:
                     self._component_lookup[workspace.name][context_name][
                         component_name
                     ] = component
+                    # Identity-keyed owner lookup so find_components can resolve
+                    # a component's context in O(1) (see _find_context_with_component)
+                    self._component_owner_lookup[id(component)] = context
 
     def get_all_contexts(self, workspace: WorkspaceConfig) -> dict[str, Context]:
         """
@@ -113,43 +127,17 @@ class ConfigAccess:
         Returns:
             Dict[str, Context]: Dictionary of context names to context objects
         """
+        # Reuse the flattened map built during _build_lookup_tables for known
+        # workspaces. Foreign workspace objects (or calls during table build,
+        # before the entry exists) fall back to flattening on demand.
+        cached = self._context_lookup.get(workspace.name)
+        if cached:
+            return cached
+
         result = {}
         for contexts in workspace.contexts.values():
             result.update(contexts)
         return result
-
-    def get(self, path: str) -> Any:
-        """
-        Get a configuration element by path.
-
-        The path format is "workspace_name/context_name/component_name".
-        Each part is optional, and the appropriate type is returned based on
-        how many path parts are provided.
-
-        Args:
-            path: Path to the configuration element
-
-        Returns:
-            The configuration element at the specified path
-            (WorkspaceConfig, Context, or Component)
-
-        Raises:
-            ValueError: If the path is invalid or not found
-        """
-        parts = path.split("/")
-        num_parts = len(parts)
-
-        if num_parts == 1:
-            # Return workspace
-            return self.get_workspace(parts[0])
-        elif num_parts == 2:
-            # Return context
-            return self.get_context(parts[0], parts[1])
-        elif num_parts == 3:
-            # Return component
-            return self.get_component(parts[0], parts[1], parts[2])
-        else:
-            raise ValueError(f"Invalid path: {path}")
 
     def get_workspace(self, workspace_name: str) -> WorkspaceConfig:
         """
@@ -241,7 +229,9 @@ class ConfigAccess:
         # Then apply property filters
         return self._apply_filters(matches, filters)
 
-    def find_contexts(self, pattern: str = "*/*", **filters: Any) -> list[Context]:
+    def find_contexts(
+        self, pattern: str = "*/*", from_matcher: bool = False, **filters: Any
+    ) -> list[Context]:
         """
         Find contexts matching a pattern and filters.
 
@@ -263,10 +253,9 @@ class ConfigAccess:
             List of matching Context instances
         """
         # Add debug logging for the pattern and filters
-        if hasattr(self, "logger"):
-            self.logger.debug(
-                f"Finding contexts with pattern: {pattern}, filters: {filters}"
-            )
+        self.logger.debug(
+            f"Finding contexts with pattern: {pattern}, filters: {filters}"
+        )
 
         # Parse the pattern
         parts = pattern.split("/")
@@ -276,59 +265,33 @@ class ConfigAccess:
             # Format: workspace/context
             workspace_pattern = parts[0]
             context_pattern = parts[1]
-            if hasattr(self, "logger"):
-                self.logger.debug(
-                    f"Two-part pattern: workspace='{workspace_pattern}', context='{context_pattern}'"
-                )
+            self.logger.debug(
+                f"Two-part pattern: workspace='{workspace_pattern}', context='{context_pattern}'"
+            )
         elif len(parts) == 1:
             # Format: context (match any workspace)
             workspace_pattern = "*"
             context_pattern = parts[0]
-            if hasattr(self, "logger"):
-                self.logger.debug(
-                    f"One-part pattern: context='{context_pattern}', matching all workspaces"
-                )
+            self.logger.debug(
+                f"One-part pattern: context='{context_pattern}', matching all workspaces"
+            )
         else:
-            if hasattr(self, "logger"):
-                self.logger.error(
-                    f"Invalid context pattern: {pattern}. Format is 'workspace/context' or 'context'"
-                )
+            self.logger.error(
+                f"Invalid context pattern: {pattern}. Format is 'workspace/context' or 'context'"
+            )
             raise ValueError(
                 f"Invalid context pattern: {pattern}. Format is 'workspace/context' or 'context'"
             )
 
-        # Expand patterns without glob chars to substring match, but handle patterns
-        # from ContextMatcher ("aws" should match "aws-*" not "*aws*")
+        # Expand patterns without glob chars. Pattern-matcher callers want a
+        # prefix match ("aws" -> "aws*", matching "aws-*" not "*aws*"); direct
+        # API callers want a substring match ("aws" -> "*aws*").
         def _expand(pat: str) -> str:
-            # If pattern doesn't have glob chars
             if not any(c in pat for c in "*?[]"):
-                # If pattern is from the pattern matcher subsystem
-                if caller_is_pattern_matcher():
-                    # Ensure pattern matches from start (e.g., "aws" matches "aws-*" not "*aws*")
+                if from_matcher:
                     return f"{pat}*"
-                else:
-                    # Default behavior: substring match
-                    return f"*{pat}*"
+                return f"*{pat}*"
             return pat
-
-        def caller_is_pattern_matcher() -> bool:
-            """Check if the caller is from the pattern matcher subsystem.
-
-            This allows us to handle patterns differently when they come from
-            the matchers vs. direct API calls.
-            """
-            import inspect
-
-            frames = inspect.stack()
-            for frame in frames[1:]:  # Skip current frame
-                filename = frame.filename
-                if (
-                    "matchers.py" in filename
-                    or "pattern_matcher.py" in filename
-                    or "pattern/facade.py" in filename
-                ):
-                    return True
-            return False
 
         workspace_pattern = _expand(workspace_pattern)
         context_pattern = _expand(context_pattern)
@@ -341,21 +304,19 @@ class ConfigAccess:
             workspace_match = fnmatch.fnmatch(workspace_name, workspace_pattern)
 
             if workspace_match:
-                if hasattr(self, "logger"):
-                    self.logger.debug(
-                        f"  - Workspace '{workspace_name}' matches pattern '{workspace_pattern}'"
-                    )
+                self.logger.debug(
+                    f"  - Workspace '{workspace_name}' matches pattern '{workspace_pattern}'"
+                )
 
                 for context_name, context in contexts.items():
                     # Match context name only
                     context_match = fnmatch.fnmatch(context_name, context_pattern)
                     if context_match:
-                        if hasattr(self, "logger"):
-                            self.logger.debug(
-                                f"  - Context '{context_name}' matches pattern '{context_pattern}'"
-                            )
+                        self.logger.debug(
+                            f"  - Context '{context_name}' matches pattern '{context_pattern}'"
+                        )
                         matches.append(context)
-                    elif hasattr(self, "logger"):
+                    else:
                         self.logger.debug(
                             f"  - Context '{context_name}' does not match pattern '{context_pattern}'"
                         )
@@ -363,28 +324,41 @@ class ConfigAccess:
         # Handle environment filter separately
         remaining_filters = dict(filters)
 
-        if hasattr(self, "logger"):
-            self.logger.debug(
-                f"Found {len(matches)} contexts before applying remaining filters: {remaining_filters}"
-            )
-            if matches:
-                self.logger.debug(f"  - Matched contexts: {[c.name for c in matches]}")
+        self.logger.debug(
+            f"Found {len(matches)} contexts before applying remaining filters: {remaining_filters}"
+        )
+        if matches:
+            self.logger.debug(f"  - Matched contexts: {[c.name for c in matches]}")
 
         filtered_matches = self._apply_filters(matches, remaining_filters)
 
-        if hasattr(self, "logger"):
-            self.logger.debug(
-                f"Returning {len(filtered_matches)} contexts after all filters"
-            )
+        self.logger.debug(
+            f"Returning {len(filtered_matches)} contexts after all filters"
+        )
 
         return filtered_matches
 
+    def find_workspace_for_context(self, context: Context) -> WorkspaceConfig | None:
+        """Get the workspace that owns a context in O(1).
+
+        Identity-based: context names are not unique across workspaces, so the
+        lookup matches the exact object handed out by this ConfigAccess. Copies
+        fall back to the name+equality scan.
+        """
+        workspace = self._context_owner_lookup.get(id(context))
+        if workspace is not None:
+            return workspace
+        for candidate in self.workspaces:
+            for contexts in candidate.contexts.values():
+                if context.name in contexts and contexts[context.name] == context:
+                    return candidate
+        return None
+
     def _get_workspace_from_context(self, context: Context) -> WorkspaceConfig:
         """Get the workspace that contains a given context."""
-        for workspace in self.workspaces:
-            for contexts in workspace.contexts.values():
-                if context.name in contexts and contexts[context.name] == context:
-                    return workspace
+        workspace = self.find_workspace_for_context(context)
+        if workspace is not None:
+            return workspace
         # This should not happen if the context is part of the configuration
         raise ValueError(f"Context {context.name} not found in any workspace")
 
@@ -411,10 +385,9 @@ class ConfigAccess:
         Returns:
             List of matching Component instances
         """
-        if hasattr(self, "logger"):
-            self.logger.debug(
-                f"Finding components with pattern: {pattern}, filters: {filters}"
-            )
+        self.logger.debug(
+            f"Finding components with pattern: {pattern}, filters: {filters}"
+        )
 
         # Parse pattern
         parts = pattern.split("/")
@@ -425,31 +398,27 @@ class ConfigAccess:
             workspace_pattern = parts[0]
             context_pattern = parts[1]
             component_pattern = parts[2]
-            if hasattr(self, "logger"):
-                self.logger.debug(
-                    f"3-part pattern detected: workspace='{workspace_pattern}', context='{context_pattern}', component='{component_pattern}'"
-                )
+            self.logger.debug(
+                f"3-part pattern detected: workspace='{workspace_pattern}', context='{context_pattern}', component='{component_pattern}'"
+            )
         elif len(parts) == 2:
             # Format: context/component (match any workspace)
             workspace_pattern = "*"
             context_pattern = parts[0]
             component_pattern = parts[1]
-            if hasattr(self, "logger"):
-                self.logger.debug(
-                    f"2-part pattern detected: context='{context_pattern}', component='{component_pattern}', workspace='*' (any)"
-                )
+            self.logger.debug(
+                f"2-part pattern detected: context='{context_pattern}', component='{component_pattern}', workspace='*' (any)"
+            )
         elif len(parts) == 1:
             # Format: component (match any workspace and context)
             workspace_pattern = "*"
             context_pattern = "*"
             component_pattern = parts[0]
-            if hasattr(self, "logger"):
-                self.logger.debug(
-                    f"1-part pattern detected: component='{component_pattern}', workspace='*' (any), context='*' (any)"
-                )
+            self.logger.debug(
+                f"1-part pattern detected: component='{component_pattern}', workspace='*' (any), context='*' (any)"
+            )
         else:
-            if hasattr(self, "logger"):
-                self.logger.error(f"Invalid component pattern: {pattern}")
+            self.logger.error(f"Invalid component pattern: {pattern}")
             raise ValueError(
                 f"Invalid component pattern: {pattern}. Format is 'workspace/context/component', 'context/component', or 'component'"
             )  # Find matching components - with enhanced debugging
@@ -457,8 +426,7 @@ class ConfigAccess:
 
         # Debug helper for verbose logging
         def log_debug(message: str) -> None:
-            if hasattr(self, "logger"):
-                self.logger.debug(message)
+            self.logger.debug(message)
 
         log_debug(
             f"PATTERN DEBUG: Processing pattern '{pattern}' => workspace='{workspace_pattern}', context='{context_pattern}', component='{component_pattern}'"
@@ -519,25 +487,12 @@ class ConfigAccess:
                     f"  - Workspace '{workspace_name}' doesn't match pattern '{workspace_pattern}'"
                 )
 
-        # Compatibility option: for exact patterns without wildcards, fall back to exact full path matching
-        if "*" not in pattern and "?" not in pattern and "[" not in pattern:
-            for workspace_name, contexts in self._component_lookup.items():
-                for context_name, components in contexts.items():
-                    for component_name, component in components.items():
-                        full_path = f"{workspace_name}/{context_name}/{component_name}"
-                        if full_path == pattern and component not in matches:
-                            log_debug(
-                                f"    - Exact path match: '{full_path}' equals pattern '{pattern}'"
-                            )
-                            matches.append(component)
-
         # Handle environment in filters
         environment = filters.get("environment")
         remaining_filters = dict(filters)
 
         if environment is not None:
-            if hasattr(self, "logger"):
-                self.logger.debug(f"Applying environment filter: '{environment}'")
+            self.logger.debug(f"Applying environment filter: '{environment}'")
 
             # We need to apply environment filter separately since it's a property of context, not component
             filtered_by_env = []
@@ -548,19 +503,17 @@ class ConfigAccess:
                     and context_with_component.environment == environment
                 ):
                     filtered_by_env.append(component)
-                    if hasattr(self, "logger"):
-                        self.logger.debug(
-                            f"  - Component '{component.name}' in context '{context_with_component.name}' matches environment '{environment}'"
-                        )
-                elif hasattr(self, "logger") and context_with_component:
+                    self.logger.debug(
+                        f"  - Component '{component.name}' in context '{context_with_component.name}' matches environment '{environment}'"
+                    )
+                elif context_with_component:
                     self.logger.debug(
                         f"  - Component '{component.name}' in context '{context_with_component.name}' with environment '{context_with_component.environment}' does not match filter '{environment}'"
                     )
 
-            if hasattr(self, "logger"):
-                self.logger.debug(
-                    f"Environment filter reduced matches from {len(matches)} to {len(filtered_by_env)} components"
-                )
+            self.logger.debug(
+                f"Environment filter reduced matches from {len(matches)} to {len(filtered_by_env)} components"
+            )
 
             matches = filtered_by_env
             # Remove environment from remaining filters
@@ -568,35 +521,27 @@ class ConfigAccess:
             remaining_filters.pop("env", None)
 
         # Then apply remaining property filters
-        if hasattr(self, "logger"):
-            self.logger.debug(
-                f"Found {len(matches)} components before applying remaining filters: {remaining_filters}"
-            )
-            if matches:
-                self.logger.debug(
-                    f"  - Matched components: {[c.name for c in matches]}"
-                )
+        self.logger.debug(
+            f"Found {len(matches)} components before applying remaining filters: {remaining_filters}"
+        )
+        if matches:
+            self.logger.debug(f"  - Matched components: {[c.name for c in matches]}")
 
         filtered_matches = self._apply_filters(matches, remaining_filters)
 
-        if hasattr(self, "logger"):
-            self.logger.debug(
-                f"Returning {len(filtered_matches)} components after all filters"
-            )
+        self.logger.debug(
+            f"Returning {len(filtered_matches)} components after all filters"
+        )
 
         return filtered_matches
 
     def _find_context_with_component(self, component: Component) -> Context | None:
-        """Find the context that contains a specific component."""
-        for workspace_name, contexts in self._context_lookup.items():
-            for context_name, context in contexts.items():
-                all_components = context.get_all_components()
-                if (
-                    component.name in all_components
-                    and all_components[component.name] is component
-                ):
-                    return context
-        return None
+        """Find the context that contains a specific component.
+
+        Resolved in O(1) via the identity-keyed owner lookup built during
+        _build_lookup_tables.
+        """
+        return self._component_owner_lookup.get(id(component))
 
     def find_contexts_in_workspace(
         self, workspace: WorkspaceConfig, pattern: str = "*"

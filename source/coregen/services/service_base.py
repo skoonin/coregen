@@ -33,6 +33,9 @@ class ServiceBase:
         console: Console output handler
     """
 
+    _global_options: Optional["GlobalOptions"]
+    _console: Console | type[Console]
+
     def __init__(
         self,
         console: Console | None = None,
@@ -114,7 +117,7 @@ class ServiceBase:
         self.logger.debug(f"Initialized {self.__class__.__name__}")
 
     @property
-    def console(self) -> Console:
+    def console(self) -> Console | type[Console]:
         """Get the console output handler instance."""
         return self._console
 

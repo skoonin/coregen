@@ -35,27 +35,6 @@ class TypeFilterService:
         """
         self.logger = logger or Logger(__name__)
 
-    def filter_by_type(self, data: dict[str, Any], entity_type: str) -> dict[str, Any]:
-        """Filter data by entity type with hierarchy.
-
-        Args:
-            data: Dictionary with workspaces, contexts, components
-            entity_type: Type to filter by (workspace, context, component)
-
-        Returns:
-            Filtered dictionary containing only the requested entity types
-        """
-        self.logger.debug(f"Filtering data by entity type: {entity_type}")
-
-        # Normalize entity type
-        entity_type = entity_type.lower() if entity_type else "workspace"
-
-        # Get included types based on hierarchy
-        included_types = self.get_included_types(entity_type)
-
-        # Apply filtering based on included types
-        return self.apply_hierarchy_filter(data, included_types)
-
     def get_included_types(self, entity_type: str) -> list[str]:
         """Get list of entity types to include based on hierarchy.
 
@@ -159,32 +138,6 @@ class TypeFilterService:
                 self.logger.debug(
                     f"Removed workspace '{workspace_name}' (no matching contexts)"
                 )
-
-    def get_entity_type_counts(self, data: dict[str, Any]) -> dict[str, int]:
-        """Get counts of each entity type in the data.
-
-        Useful for logging and debugging.
-
-        Args:
-            data: Data dictionary to count
-
-        Returns:
-            Dictionary with counts for each entity type
-        """
-        counts = {}
-
-        for entity_type in ["workspaces", "contexts", "components"]:
-            if entity_type in data:
-                if isinstance(data[entity_type], dict):
-                    counts[entity_type] = len(data[entity_type])
-                elif isinstance(data[entity_type], list):
-                    counts[entity_type] = len(data[entity_type])
-                else:
-                    counts[entity_type] = 0
-            else:
-                counts[entity_type] = 0
-
-        return counts
 
     def filter_exclusive(
         self, data: dict[str, Any], entity_type: str

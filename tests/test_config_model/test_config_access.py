@@ -194,32 +194,6 @@ class TestConfigAccess:
             in str(excinfo.value)
         )
 
-    def test_get_path_one_segment(self, config_access):
-        """Test getting a workspace using the get() method with one segment path."""
-        workspace = config_access.get("test-workspace")
-        assert workspace.name == "test-workspace"
-        assert workspace.context_type == "cluster"
-
-    def test_get_path_two_segments(self, config_access):
-        """Test getting a context using the get() method with two segment path."""
-        context = config_access.get("test-workspace/dev-context")
-        assert context.name == "dev-context"
-        assert context.environment == "dev"
-
-    def test_get_path_three_segments(self, config_access):
-        """Test getting a component using the get() method with three segment path."""
-        component = config_access.get("test-workspace/dev-context/api")
-        assert component.name == "api"
-        assert component.config.active is True
-
-    def test_get_path_invalid(self, config_access):
-        """Test getting an invalid path using the get() method."""
-        with pytest.raises(ValueError) as excinfo:
-            config_access.get("test-workspace/dev-context/api/extra")
-        assert "Invalid path: test-workspace/dev-context/api/extra" in str(
-            excinfo.value
-        )
-
     def test_find_workspaces_all(self, config_access):
         """Test finding all workspaces."""
         workspaces = config_access.find_workspaces()
@@ -782,11 +756,7 @@ class TestConfigProcessor:
             # Process should not raise an exception even with invalid config
             result = processor.process(config_dict)
 
-            # Print debug info
-            print(f"Result length: {len(result)}")
-            if result:
-                print(f"Result[0]: {result[0]}")
-            print(f"Validation errors: {mock_provider.validation_errors}")
-
-            # Just make the test pass for now
-            assert True
+            # Graceful degradation: returns a list and surfaces problems via
+            # validation_errors rather than raising
+            assert isinstance(result, list)
+            assert isinstance(mock_provider.validation_errors, list)

@@ -200,9 +200,10 @@ class SchemaCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options using the standardized pattern  # type: ignore[unreachable]
-        global_options = GlobalOptions.from_context(self.ctx)
-        options = global_options.to_dict()
+        # Reuse global options fetched in run(); fetch on demand otherwise
+        if self.global_options is None:
+            self.global_options = GlobalOptions.from_context(self.ctx)
+        options = self.global_options.to_dict()
 
         # Add command-specific options
         options.update(
@@ -219,7 +220,7 @@ class SchemaCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options first  # type: ignore[unreachable]
+        # Get global options first
         self.global_options = GlobalOptions.from_context(self.ctx)
 
         # Get options from context
@@ -300,13 +301,17 @@ class SchemaCommand(FormatValidationMixin):
                 # Output the combined schema data through console
                 self.console.print(result["schema_data"], output_format=output_format)
 
+        except typer.Exit:
+            # Deliberate exits already reported their error; re-wrapping them
+            # appended the exit code to the user-facing message
+            raise
         except FileNotFoundError as e:
             self.logger.error(f"Config file not found: {str(e)}")
-            self.console.error(f"Error: {str(e)}")
+            self.console.error(f"{str(e)}")
             raise typer.Exit(1)
         except Exception as e:
             self.logger.error(f"Error generating schema: {e}")
-            self.console.error(f"Error: Failed to generate schema. {str(e)}")
+            self.console.error(f"Failed to generate schema. {str(e)}")
             raise typer.Exit(1)
         finally:
             # Always reset output format

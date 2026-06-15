@@ -301,30 +301,6 @@ def test_resolve_template_missing_vars(resolver):
         resolver.resolve_template(template, variables)
 
 
-def test_find_files_by_pattern(resolver, temp_root):
-    """Test finding files with glob patterns."""
-    # Create test files
-    (temp_root / "file1.txt").touch()
-    (temp_root / "file2.txt").touch()
-    (temp_root / "subdir").mkdir()
-    (temp_root / "subdir" / "file3.txt").touch()
-
-    # Find *.txt files
-    pattern = temp_root / "*.txt"
-    files = list(resolver.find_files_by_pattern(pattern))
-    assert len(files) == 2
-    assert temp_root / "file1.txt" in files
-    assert temp_root / "file2.txt" in files
-
-    # Find files recursively
-    pattern = temp_root / "**" / "*.txt"
-    files = list(resolver.find_files_by_pattern(pattern))
-    assert len(files) == 3
-    assert temp_root / "file1.txt" in files
-    assert temp_root / "file2.txt" in files
-    assert temp_root / "subdir" / "file3.txt" in files
-
-
 def test_resolve_config_templates(resolver):
     """Test resolving templates in a config dictionary."""
     # Since the method doesn't recursively process all nested values in the implementation,

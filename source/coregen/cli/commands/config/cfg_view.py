@@ -203,12 +203,10 @@ class ViewCommand(FormatValidationMixin):
         if not self.ctx:
             raise RuntimeError("Context not initialized")
 
-        # Get global options using the standardized pattern
-        self.logger.debug(f"ctx.obj before GlobalOptions.from_context: {self.ctx.obj}")
-        global_options = GlobalOptions.from_context(self.ctx)
-        self.logger.debug(
-            f"global_options.config_file after from_context: {global_options.config_file}"
-        )
+        # Reuse global options fetched in run(); fetch on demand otherwise
+        if self.global_options is None:
+            self.global_options = GlobalOptions.from_context(self.ctx)
+        global_options = self.global_options
         options = global_options.to_dict()
 
         # Add command-specific options
@@ -236,11 +234,26 @@ class ViewCommand(FormatValidationMixin):
         self.options = self._get_options()
         self.logger.debug(f"Running view command with options: {self.options}")
 
-        try:
-            # Validate output format is supported for this command
-            output_format = self.options.get("output_format")
-            self.validate_output_format(output_format)
+        # Validate inputs before the try block so validation failures keep
+        # their own exit semantics instead of the generic failure path
+        output_format: OutputFormat = (
+            self.options.get("output_format") or self.DEFAULT_FORMAT
+        )
+        self.validate_output_format(output_format)
 
+        # The view_mode argument is free-form text; validate it against the
+        # enum here so the service's Literal contract is actually guaranteed
+        view_mode_raw = str(self.options.get("view_mode") or ViewMode.RAW.value)
+        try:
+            view_mode = ViewMode(view_mode_raw)
+        except ValueError:
+            valid_modes = ", ".join(mode.value for mode in ViewMode)
+            self.console.error(
+                f"Invalid view mode '{view_mode_raw}'. Valid modes: {valid_modes}"
+            )
+            raise typer.Exit(2)
+
+        try:
             # Set output format for proper stderr/stdout routing (Output Pipeline pattern)
             self.console.set_output_format(output_format)
 
@@ -249,13 +262,12 @@ class ViewCommand(FormatValidationMixin):
 
             # Get configuration based on view mode
             config_file_path = self.options.get("config_file_path")
-            view_mode = self.options.get("view_mode") or ViewMode.RAW.value
 
             # Fetch configuration via service
             config_data = self.view_service.view_config(
                 config_file_path=config_file_path,
-                view_mode=view_mode,  # type: ignore[arg-type]
-                output_format=output_format,  # type: ignore[arg-type]
+                view_mode=view_mode.value,
+                output_format=output_format,
             )
 
             # No need to check for TABLE format since config view only supports YAML and JSON
@@ -263,13 +275,15 @@ class ViewCommand(FormatValidationMixin):
             # Display the result using console.print which handles formatting
             self.console.print(config_data, output_format=output_format)
 
+        except typer.Exit:
+            raise
         except FileNotFoundError as e:
-            self.console.error(f"Error: {str(e)}")
+            self.console.error(f"{str(e)}")
             raise typer.Exit(1)
         except Exception as e:
             self.logger.error(f"Failed to view config: {str(e)}")
             self.logger.exception("Full traceback:")
-            self.console.error(f"Error: Failed to view config. {str(e)}")
+            self.console.error(f"Failed to view config. {str(e)}")
             raise typer.Exit(1)
         finally:
             # Always reset output format (Output Pipeline pattern)

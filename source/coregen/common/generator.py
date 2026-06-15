@@ -1,5 +1,6 @@
 # static_classes/generator.py
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,7 @@ class Generator:
                     output_extension = output_path.suffix.lstrip(".").lower()
 
                     # Determine autoescape strategy based on output file type
+                    autoescape_config: Callable[[str | None], bool] | bool
                     if output_extension in ("html", "htm", "xml", "xhtml", "svg"):
                         # For web content, enable strict autoescape
                         autoescape_config = jinja2.select_autoescape(
@@ -155,6 +157,15 @@ class Generator:
                     )
 
                     error_str = str(e)
+
+                    # Default message covers every JinjaTemplateError subtype; the
+                    # UndefinedError branch below refines it. Without this default,
+                    # non-Undefined errors (TemplateRuntimeError, filter failures)
+                    # raised UnboundLocalError at the console.error call.
+                    error = (
+                        f"{prefix}Template error in {template_path}: "
+                        f"[deep_pink1]{error_str}[/]"
+                    )
 
                     # Enhanced hyphen detection
                     is_hyphen_related = False
@@ -268,7 +279,7 @@ class Generator:
                     logger.exception(error)
                     errors.append(error)
                     if not quiet:
-                        console.error(f"Error: {error}")
+                        console.error(f"{error}")
                     content = None
 
                 # Only write if rendering was successful
@@ -295,6 +306,6 @@ class Generator:
             logger.exception(error)
             errors.append(error)
             if not quiet:
-                console.error(f"Error: {error}")
+                console.error(f"{error}")
 
         return errors  # Return collected errors at the end

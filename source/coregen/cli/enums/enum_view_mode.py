@@ -42,16 +42,6 @@ class ViewMode(str, Enum):
         except ValueError:
             return None
 
-    @classmethod
-    def get_values(cls: type[T]) -> dict[str, T]:
-        """
-        Get a dictionary of all enum values.
-
-        Returns:
-            Dict[str, ViewMode]: Dictionary of all enum values
-        """
-        return {e.value: e for e in cls}
-
     def __str__(self) -> str:
         """Return string representation."""
         return self.value

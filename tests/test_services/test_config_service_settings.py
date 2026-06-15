@@ -1,36 +1,42 @@
-"""Unit tests for ConfigServiceBase with settings integration."""
+"""Unit tests for config-service settings integration.
+
+Config services derive from ServicesBase (which inherits the option/settings
+precedence from ServiceBase). ConfigInitService stands in as a concrete subclass
+to exercise that shared behavior.
+
+In the documented hierarchy, individual flag options (dry_run, file_action,
+quiet, verbose, no_color) fall back to settings when passed as None, while the
+config file is resolved through GlobalOptions (the path the CLI always uses).
+"""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from coregen.cli.enums.enum_file_action import FileAction
-
-# OutputFormat import removed - no longer used in services
+from coregen.cli.global_options import GlobalOptions
 from coregen.common.console import Console
 from coregen.common.file_manager import FileManager
 from coregen.common.workspace_initializer import WorkspaceInitializer
 from coregen.config_model.provider import ConfigurationProvider
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.config.cfg_init_service import ConfigInitService
+
+# ServiceBase imports get_settings from this module inside __init__.
+SETTINGS_TARGET = "coregen.config_model.models.settings.get_settings"
 
 
-class TestConfigServiceBaseSettings:
-    """Test the ConfigServiceBase class with settings integration."""
+class TestConfigServiceSettings:
+    """Settings integration for config services via ServicesBase."""
 
     def test_settings_defaults(self, mock_settings):
-        """Test ConfigServiceBase using settings for defaults."""
-        # Need to use patch objects to avoid affecting original classes
-        with patch(
-            "coregen.config_model.models.settings.get_settings",
-            return_value=mock_settings,
-        ):
-            # Create mocks for each component so we can check what's passed to them
+        """Omitted (None) flag options fall back to settings defaults."""
+        with patch(SETTINGS_TARGET, return_value=mock_settings):
             mock_console = MagicMock(spec=Console)
             mock_file_manager = MagicMock(spec=FileManager)
             mock_provider = MagicMock(spec=ConfigurationProvider)
             mock_workspace_init = MagicMock(spec=WorkspaceInitializer)
 
-            # Create service with all None parameters to test settings defaults
-            service = ConfigServiceBase(
+            # All None parameters => settings defaults are used
+            service = ConfigInitService(
                 console=mock_console,
                 file_manager=mock_file_manager,
                 config_provider=mock_provider,
@@ -46,125 +52,69 @@ class TestConfigServiceBaseSettings:
             # Services no longer call Console.setup() - verify it wasn't called
             mock_console.setup.assert_not_called()
 
-            # Verify service attributes match settings defaults
             assert service.dry_run == mock_settings.options.global_options.dry_run
             assert (
                 service.file_action == mock_settings.options.global_options.file_action
             )
             assert service.quiet == mock_settings.options.global_options.quiet
             assert service.verbose == mock_settings.options.global_options.verbose
-            # output_format removed from services
             assert service.no_color == mock_settings.options.global_options.no_color
-            assert (
-                service.config_file == mock_settings.options.global_options.config_file
-            )
 
     def test_parameter_overrides(self, mock_settings):
-        """Test explicit parameters overriding settings defaults."""
-        # Create explicit parameters different from settings defaults
-        explicit_dry_run = (
-            True  # Different from mock_settings.options.global_options.dry_run
-        )
-        explicit_file_action = (
-            FileAction.SKIP
-        )  # Different from mock_settings default of OVERWRITE
+        """Explicit parameters override settings defaults; None still falls back."""
+        explicit_dry_run = True
+        explicit_file_action = FileAction.SKIP
 
-        with patch(
-            "coregen.config_model.models.settings.get_settings",
-            return_value=mock_settings,
-        ):
-            # Create mocks for each component
+        with patch(SETTINGS_TARGET, return_value=mock_settings):
             mock_console = MagicMock(spec=Console)
             mock_file_manager = MagicMock(spec=FileManager)
             mock_provider = MagicMock(spec=ConfigurationProvider)
             mock_workspace_init = MagicMock(spec=WorkspaceInitializer)
 
-            # Create service with mix of explicit and None parameters
-            service = ConfigServiceBase(
+            service = ConfigInitService(
                 console=mock_console,
                 file_manager=mock_file_manager,
                 config_provider=mock_provider,
                 workspace_initializer=mock_workspace_init,
-                dry_run=explicit_dry_run,  # Explicit value different from settings
-                file_action=explicit_file_action,  # Explicit value different from settings
-                # output_format removed
-                quiet=None,  # Use settings default
-                verbose=None,  # Use settings default
-                no_color=None,  # Use settings default
-                config_file=None,  # Use settings default
+                dry_run=explicit_dry_run,
+                file_action=explicit_file_action,
+                quiet=None,
+                verbose=None,
+                no_color=None,
+                config_file=None,
             )
 
-            # Services no longer call Console.setup() - verify it wasn't called
             mock_console.setup.assert_not_called()
 
-            # Verify service attributes match the mixed parameters
-            assert service.dry_run == explicit_dry_run  # Should use explicit value
-            assert (
-                service.file_action == explicit_file_action
-            )  # Should use explicit value
-            assert (
-                service.quiet == mock_settings.options.global_options.quiet
-            )  # Should use settings
-            assert (
-                service.verbose == mock_settings.options.global_options.verbose
-            )  # Should use settings
-            # output_format removed from services  # Should use settings
-            assert (
-                service.no_color == mock_settings.options.global_options.no_color
-            )  # Should use settings
-            assert (
-                service.config_file == mock_settings.options.global_options.config_file
-            )  # Should use settings
+            # Explicit values win
+            assert service.dry_run == explicit_dry_run
+            assert service.file_action == explicit_file_action
+            # None falls back to settings
+            assert service.quiet == mock_settings.options.global_options.quiet
+            assert service.verbose == mock_settings.options.global_options.verbose
+            assert service.no_color == mock_settings.options.global_options.no_color
 
-    def test_config_file_from_settings(self):
-        """Test that config_file is properly read from settings when specified."""
-        # Create a fresh mock settings with a specific config file path
+    def test_config_file_from_global_options(self):
+        """config_file is taken from GlobalOptions when provided."""
         test_config_path = Path("/test/path/custom-config.yaml")
+        global_options = GlobalOptions(config_file=test_config_path)
 
-        mock_settings = MagicMock()
-        mock_settings.options.global_options.dry_run = False
-        mock_settings.options.global_options.file_action = FileAction.OVERWRITE
-        # output_format removed from services
-        mock_settings.options.global_options.quiet = False
-        mock_settings.options.global_options.verbose = False
-        mock_settings.options.global_options.no_color = False
-        mock_settings.options.global_options.config_file = test_config_path
+        service = ConfigInitService(global_options=global_options)
 
-        with patch(
-            "coregen.services.config.cfg_base_service.get_settings",
-            return_value=mock_settings,
-        ):
-            # Create service without explicit config_file parameter
-            service = ConfigServiceBase()
+        assert service.config_file == test_config_path
+        assert isinstance(service.config_file, Path)
 
-            # Verify that the service reads config_file from settings
-            assert service.config_file == test_config_path
-            assert isinstance(service.config_file, Path)
+    def test_config_file_global_options_precedence(self):
+        """The GlobalOptions config_file wins over an individual config_file param."""
+        global_config_path = Path("/global/config.yaml")
+        individual_config_path = Path("/individual/config.yaml")
+        global_options = GlobalOptions(config_file=global_config_path)
 
-    def test_config_file_parameter_overrides_settings(self):
-        """Test that explicit config_file parameter overrides settings."""
-        # Create mock settings with one config file path
-        settings_config_path = Path("/settings/config.yaml")
+        # GlobalOptions takes precedence over individual options
+        service = ConfigInitService(
+            global_options=global_options,
+            config_file=individual_config_path,
+        )
 
-        mock_settings = MagicMock()
-        mock_settings.options.global_options.dry_run = False
-        mock_settings.options.global_options.file_action = FileAction.OVERWRITE
-        # output_format removed from services
-        mock_settings.options.global_options.quiet = False
-        mock_settings.options.global_options.verbose = False
-        mock_settings.options.global_options.no_color = False
-        mock_settings.options.global_options.config_file = settings_config_path
-
-        # Specify a different config file explicitly
-        explicit_config_path = Path("/explicit/config.yaml")
-
-        with patch(
-            "coregen.services.config.cfg_base_service.get_settings",
-            return_value=mock_settings,
-        ):
-            # Create service with explicit config_file parameter
-            service = ConfigServiceBase(config_file=explicit_config_path)
-
-            # Verify that explicit parameter takes precedence
-            assert service.config_file == explicit_config_path
-            assert service.config_file != settings_config_path
+        assert service.config_file == global_config_path
+        assert service.config_file != individual_config_path

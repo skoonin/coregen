@@ -1,6 +1,5 @@
 # common/path_service.py
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +101,10 @@ class PathService:
             workspace_config={"context_type": workspace.context_type},
             config_file_path=getattr(context, "config_file_path", None),
         )
+        if context_path is None:
+            raise ValueError(
+                f"Failed to resolve context path for '{workspace.name}/{context.name}'"
+            )
 
         if hasattr(context, "set_internal_path"):
             # Set the internal path as relative to root
@@ -121,7 +124,7 @@ class PathService:
             else self.resolver.get_commit_dir(str(context_path))
         )
 
-        return {"context_path": context_path, "commit_dir": commit_dir}  # type: ignore[dict-item]
+        return {"context_path": context_path, "commit_dir": commit_dir}
 
     def resolve_component_paths(
         self, component: Any, context: Any, workspace: Any
@@ -163,16 +166,15 @@ class PathService:
 
             # Now, determine the final component path
             if custom_path_str:
-                # If custom_path is provided, resolve it relative to root
-                if os.path.isabs(custom_path_str):
-                    final_component_path = Path(custom_path_str)
-                else:
-                    # Assuming self.resolver has access to root_path or similar base
-                    # If PathResolver doesn't store root_path, we might need to get it from settings
-                    root_path = getattr(
-                        self.resolver, "root_path", Path(".")
-                    )  # Get root_path safely
-                    final_component_path = (root_path / custom_path_str).resolve()
+                # Resolve through the resolver so component custom paths get
+                # the same root-containment enforcement as workspace/context
+                # custom paths.
+                final_component_path = self.resolver.get_component_path(
+                    workspace_name=workspace.name,
+                    context_name=context.name,
+                    component_name=component.name,
+                    custom_path=custom_path_str,
+                )
                 self.logger.debug(
                     f"Using custom path override for component '{component.name}': {final_component_path}"
                 )

@@ -11,16 +11,10 @@ from typing import Any
 from coregen.common.console import Console
 from coregen.common.logger import Logger
 from coregen.config_model.access import ConfigAccess
-from coregen.config_model.models.components import Component
-from coregen.config_model.models.context import Context
 from coregen.config_model.models.settings import get_settings
-from coregen.config_model.models.workspace import WorkspaceConfig
 
 # Import our new pattern matching components
 from .pattern_matcher import PatternMatcherFactory
-
-# Define logical prefixes at the module level for clarity
-LOGICAL_PREFIXES = ("workspace/", "context/", "component/")
 
 
 class PatternMatcher:
@@ -30,7 +24,7 @@ class PatternMatcher:
         self,
         config_access: ConfigAccess,
         root_path: Path,
-        console: Console,
+        console: Console | type[Console],
         logger: Logger,
         verbose: bool | None = None,
     ):
@@ -126,12 +120,6 @@ class PatternMatcher:
             else:
                 self.logger.debug(f"Pattern '{pattern}' did not match any elements.")
                 self.logger.debug(f"  - No matches found for pattern: '{pattern}'")
-
-                # Suggest alternative patterns if none matched
-                suggestions = self._suggest_alternative_patterns(pattern)
-                if suggestions:
-                    suggestion_str = ", ".join([f"'{s}'" for s in suggestions])
-                    self.logger.debug(f"  - You might try: {suggestion_str}")
         except Exception as e:
             self.logger.error(f"Error matching pattern '{pattern}': {str(e)}")
             if self.verbose:
@@ -148,145 +136,3 @@ class PatternMatcher:
             # For other errors, just log and return empty result
 
         return result
-
-    def _suggest_alternative_patterns(self, pattern: str) -> list[str]:
-        """Suggest alternative patterns that might work when a pattern doesn't match.
-
-        Args:
-            pattern: The original pattern that didn't match
-
-        Returns:
-            A list of suggested alternative patterns
-        """
-        suggestions = []
-
-        # If unprefixed pattern with slashes, suggest prefixed version
-        if "/" in pattern and not any(pattern.startswith(p) for p in LOGICAL_PREFIXES):
-            # Looks like a path pattern, suggest logical alternatives
-            parts = pattern.split("/")
-            if len(parts) >= 2:
-                # Could be workspace/context pattern
-                suggestions.append(f"workspace/{pattern}")
-            if len(parts) == 1:
-                # Could be a simple workspace, context, or component
-                suggestions.append(f"workspace/{pattern}")
-                suggestions.append(f"context/{pattern}")
-                suggestions.append(f"component/{pattern}")
-
-        # If no glob, suggest adding glob
-        if "*" not in pattern:
-            # For logical patterns
-            if pattern.startswith("workspace/"):
-                suggestions.append(f"{pattern}/**")
-            elif pattern.startswith("context/"):
-                suggestions.append(f"{pattern}/**")
-            # For filesystem patterns
-            elif pattern.endswith("/"):
-                suggestions.append(f"{pattern}**")
-            else:
-                suggestions.append(f"{pattern}/*")
-
-        return suggestions
-
-    def _add_matched_workspace(
-        self,
-        workspace: WorkspaceConfig,
-        result: dict[str, dict[str, Any]],
-        add_children: bool = False,
-    ) -> None:
-        """
-        Add a matched workspace to the result dictionary.
-
-        Args:
-            workspace: The workspace to add.
-            result: The dictionary to populate with matches.
-            add_children: Whether to also add the workspace's contexts and components.
-        """
-        if workspace.name not in result["workspaces"]:
-            result["workspaces"][workspace.name] = workspace
-
-            if add_children:
-                contexts = self.config_access.get_all_contexts(workspace)
-                for ctx_name, ctx in contexts.items():
-                    self._add_matched_context(
-                        ctx, result, add_children=True, add_parent=False
-                    )
-
-    def _add_matched_context(
-        self,
-        context: Context,
-        result: dict[str, dict[str, Any]],
-        add_children: bool = False,
-        add_parent: bool = True,
-    ) -> None:
-        """
-        Add a matched context to the result dictionary.
-
-        Args:
-            context: The context to add.
-            result: The dictionary to populate with matches.
-            add_children: Whether to also add the context's components.
-            add_parent: Whether to also add the context's parent workspace.
-        """
-        if context.name not in result["contexts"]:
-            result["contexts"][context.name] = context
-
-            if add_parent:
-                ws = self.config_access._get_workspace_from_context(context)
-                if ws:
-                    self._add_matched_workspace(ws, result, add_children=False)
-
-            if add_children:
-                components = context.get_all_components()
-                for comp_name, comp in components.items():
-                    self._add_matched_component(comp, context, result, add_parent=False)
-
-    def _add_matched_component(
-        self,
-        component: Component,
-        context: Context,
-        result: dict[str, dict[str, Any]],
-        add_parent: bool = True,
-    ) -> None:
-        """
-        Add a matched component to the result dictionary.
-
-        Args:
-            component: The component to add.
-            context: The component's parent context.
-            result: The dictionary to populate with matches.
-            add_parent: Whether to also add the component's parent context and workspace.
-        """
-        key = f"{context.name}/{component.name}"
-        if key not in result["components"]:
-            result["components"][key] = component
-
-            if add_parent:
-                self._add_matched_context(
-                    context, result, add_children=False, add_parent=True
-                )
-
-    def _match_logical_pattern(
-        self, pattern: str, result: dict[str, dict[str, Any]]
-    ) -> bool:
-        """
-        Match a logical pattern (with prefix like 'workspace/', 'context/' or 'component/').
-        This method is kept for backward compatibility.
-
-        Args:
-            pattern: The logical pattern to match.
-            result: The dictionary to populate with matches.
-
-        Returns:
-            True if any element was matched, False otherwise.
-        """
-        self.logger.debug(f"Legacy matching for logical pattern: {pattern}")
-
-        # Use our new two-phase matching instead
-        try:
-            matcher = self.factory.create_matcher(pattern)
-            matched = matcher.match(result)
-            return matched
-        except Exception as e:
-            self.logger.error(f"Error in legacy _match_logical_pattern: {str(e)}")
-            return False

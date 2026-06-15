@@ -9,8 +9,16 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 
+from coregen.config_model.component_ordering import order_components
 from coregen.config_model.models.components import Component
 from coregen.config_model.models.settings import get_settings
 from coregen.config_model.models.validation import ModelValidator
@@ -34,7 +42,7 @@ class Context(BaseModel):
     # Required fields
     name: Annotated[str, Field(..., description="Required: Context name")]
     environment: Annotated[
-        str,
+        str | None,
         Field(
             default_factory=lambda: settings.context.environment,
             description="Context's environment. Defaults to the value in settings.",
@@ -132,7 +140,14 @@ class Context(BaseModel):
         ),
     ]
 
-    # Private field for caching sorted components
+    # Cached deployment-ordered components; invalidated when components change.
+    _sorted_components_cache: dict[str, Component] | None = PrivateAttr(default=None)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Invalidate the ordered-component cache when components is reassigned."""
+        if name == "components":
+            self._sorted_components_cache = None
+        super().__setattr__(name, value)
 
     @field_validator("component_type")
     @classmethod
@@ -232,10 +247,9 @@ class Context(BaseModel):
                         "Active context must have at least one active component"
                     )
 
-        # Validate component dependencies - active components cannot depend on inactive components
-        if not self.skip_validation:
-            self._validate_component_dependencies()
-
+        # Dependency validation runs in the processor once components are
+        # attached (processor attaches them after construction, so a run here
+        # would only ever see a partial component set)
         return self
 
     def _validate_component_dependencies(self) -> None:
@@ -275,14 +289,7 @@ class Context(BaseModel):
 
             # Validate each dependency
             for dep in dependencies:
-                # Handle both dict and ComponentDependency objects
-                if hasattr(dep, "name"):
-                    dep_name = dep.name
-                elif isinstance(dep, dict):  # type: ignore[unreachable]
-                    dep_name = dep.get("name")
-                else:
-                    continue
-
+                dep_name = dep.name
                 if not dep_name:
                     continue
 
@@ -331,135 +338,6 @@ class Context(BaseModel):
 
         return self
 
-    @model_validator(mode="after")
-    def auto_sort_components(self) -> Context:
-        """Automatically sort components after model creation/update.
-
-        This ensures components are always in proper deployment order:
-        1. Priority-based (0 highest, then 1, 2, 3... None lowest)
-        2. Dependencies come before dependents
-        3. Alphabetically by name for equal priority
-
-        NOTE: This is the SINGLE source of truth for component ordering.
-        All services and commands rely on this pre-sorted order.
-        """
-        if not self.components:
-            return self
-
-        # Set context_name on all components for proper sorting
-        for component_type, component_dict in self.components.items():
-            if isinstance(component_dict, dict):
-                for component_name, component in component_dict.items():
-                    if hasattr(
-                        component, "__dict__"
-                    ):  # Ensure it's not a frozen object
-                        setattr(
-                            component, "context_name", self.name
-                        )  # Dynamic attribute
-
-        # Get sorted components using the existing method
-        # This will raise validation errors if there are issues with priorities or dependencies
-        sorted_components_dict = self.get_all_components()
-
-        # Rebuild the nested structure maintaining the sorted order
-        # Python 3.7+ guarantees dict maintains insertion order
-        new_components: dict[str, dict[str, Component]] = {}
-
-        # Create type mappings
-        comp_name_to_type = {}
-        for comp_type, comp_type_dict in self.components.items():
-            if isinstance(comp_type_dict, dict):
-                new_components[comp_type] = {}
-                for comp_name in comp_type_dict.keys():
-                    comp_name_to_type[comp_name] = comp_type
-
-        # Place components in sorted order within their types
-        # This maintains the global sort order while preserving type structure
-        for comp_name, component in sorted_components_dict.items():
-            if comp_name in comp_name_to_type:
-                comp_type = comp_name_to_type[comp_name]
-                new_components[comp_type][comp_name] = component
-
-        # Update the components dictionary with sorted order
-        self.components = new_components
-
-        return self
-
-    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
-        """Override model_dump to ensure components are sorted when serialized."""
-        # Get the base model dump
-        data = super().model_dump(**kwargs)
-
-        # If components are present, sort them
-        if "components" in data and isinstance(data["components"], dict):
-            # Get sorted components
-            sorted_components = self.get_all_components()
-
-            # Rebuild components dict in sorted order
-            sorted_comp_dict: dict[str, dict[str, Any]] = {}
-
-            # Check if we have a nested structure (component_type -> component_name -> component_data)
-            # This is the standard Coregen structure where components are grouped by type
-            has_component_types = False
-
-            # More robust check: if any top-level value is a dict containing dicts with component-like data
-            for key, value in data["components"].items():
-                if isinstance(value, dict) and value:  # Non-empty dict
-                    # Check if this looks like a component type dict (has component names as keys)
-                    # Get first value to check structure
-                    first_value = next(iter(value.values()))
-                    if isinstance(first_value, dict):
-                        # This is likely a component type dict
-                        has_component_types = True
-                        break
-
-            if has_component_types:
-                # Components are nested by type, need to preserve that structure
-                # but sort ALL components globally (not within each type)
-                # Build a mapping from component name to type
-                comp_name_to_type = {}
-                for comp_type, comp_type_dict in data["components"].items():
-                    if isinstance(comp_type_dict, dict):
-                        for comp_name in comp_type_dict.keys():
-                            comp_name_to_type[comp_name] = comp_type
-
-                # Now rebuild the structure with components in sorted order
-                for comp_name, comp in sorted_components.items():
-                    if comp_name in comp_name_to_type:
-                        comp_type = comp_name_to_type[comp_name]
-                        # Create type dict if it doesn't exist
-                        if comp_type not in sorted_comp_dict:
-                            sorted_comp_dict[comp_type] = {}
-                        # Add the sorted component to its type dict
-                        # Convert component object to dict for serialization
-                        if hasattr(comp, "model_dump"):
-                            comp_data = comp.model_dump(**kwargs)
-                        elif isinstance(comp, dict):  # type: ignore[unreachable]
-                            comp_data = comp
-                        else:
-                            # Fallback to original data if conversion fails
-                            comp_data = data["components"][comp_type][comp_name]
-                        sorted_comp_dict[comp_type][comp_name] = comp_data
-            else:
-                # Components are flat, just sort them
-                for comp_name, comp in sorted_components.items():
-                    # Convert component object to dict for serialization
-                    if hasattr(comp, "model_dump"):
-                        comp_data = comp.model_dump(**kwargs)
-                    elif isinstance(comp, dict):  # type: ignore[unreachable]
-                        comp_data = comp
-                    else:
-                        # Fallback to original data if conversion fails
-                        if comp_name in data["components"]:
-                            comp_data = data["components"][comp_name]
-                        else:
-                            continue
-                    sorted_comp_dict[comp_name] = comp_data
-
-            data["components"] = sorted_comp_dict
-
-        return data
-
     def get_all_components(self) -> dict[str, Component]:
         """Get all components from all component types as a flattened dictionary.
 
@@ -467,60 +345,19 @@ class Context(BaseModel):
         1. By priority (0 highest, then 1, 2, 3... None lowest)
         2. Dependencies come before dependents
         3. Alphabetically by name for equal priority
+
+        Components are immutable after config processing, so the ordered result
+        is memoized on first access and reused thereafter. The cache is cleared
+        whenever ``components`` is reassigned (see ``__setattr__``).
         """
-        # First collect all components
-        components_list = []
-        components_dict = self.components if isinstance(self.components, dict) else {}
-        for component_type, component_type_dict in components_dict.items():
-            if isinstance(component_type_dict, dict):
-                for component_name, component in component_type_dict.items():
-                    components_list.append((component_name, component))
-
-        # Sort components using ComponentSorterService for consistent ordering
-        from coregen.common.component_sorter_service import ComponentSorterService
-
-        # Convert to format expected by sorter
-        comp_dicts = []
-        for name, comp in components_list:
-            comp_dict = {
-                "name": name,
-                "context": self.name,
-                "workspace": self.workspace or "",
-                "config": comp.config.model_dump() if hasattr(comp, "config") else {},
-            }
-            comp_dicts.append(comp_dict)
-
-        # Sort using the sorter service, skipping validation if requested
-        sorter = ComponentSorterService()
-        sorted_comp_dicts = sorter.sort_entities(
-            comp_dicts, entity_type="component", skip_validation=self.skip_validation
-        )
-
-        # Build ordered result dictionary
-        result = {}
-        for comp_dict in sorted_comp_dicts:
-            comp_name: str = comp_dict["name"]  # type: ignore[assignment]
-            # Find the original component object
-            for orig_name, orig_comp in components_list:
-                if orig_name == comp_name:
-                    result[comp_name] = orig_comp
-                    break
-
-        return result
-
-    @property
-    def sorted_components(self) -> dict[str, Component]:
-        """Get all components in sorted order.
-
-        Components are sorted by priority and dependencies using
-        the ComponentSorterService for consistent ordering.
-        Since components are immutable after initialization,
-        no caching is needed.
-
-        Returns:
-            Dictionary of component name to Component, in sorted order
-        """
-        return self.get_all_components()
+        if self._sorted_components_cache is None:
+            self._sorted_components_cache = order_components(
+                self.components,
+                context_name=self.name,
+                workspace=self.workspace or "",
+                skip_validation=self.skip_validation,
+            )
+        return self._sorted_components_cache
 
     @property
     def path(self) -> str:

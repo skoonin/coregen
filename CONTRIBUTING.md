@@ -138,12 +138,7 @@ See [Architecture Documentation](docs/developer/architecture/overview.md) for de
 
 - **Questions**: Open a [Discussion](https://github.com/skoonin/coregen/discussions)
 - **Bugs**: Open an [Issue](https://github.com/skoonin/coregen/issues)
-- **Security**: See [SECURITY.md](SECURITY.md)
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
-
-## Code of Conduct
-
-This project adheres to a Code of Conduct. By participating, you are expected to uphold this code. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.

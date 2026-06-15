@@ -98,11 +98,9 @@ class FileManager:
             self._archive(path)
             return True
         elif self.file_action == FileAction.DELETE:
-            if self.file_action != FileAction.OVERWRITE:
-                logger.debug(f"Deleting: {path}")
+            logger.debug(f"Deleting: {path}")
             self._delete(path)
             return True
-        return True
 
     def _prompt_action(self, path: Path) -> bool:
         if self.dry_run:
@@ -285,6 +283,12 @@ class FileManager:
 
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
+
+            # An existing empty directory at the target is skipped by
+            # _handle_action; remove it so write_text has a file target instead
+            # of raising IsADirectoryError
+            if path.is_dir() and not any(path.iterdir()):
+                path.rmdir()
 
             path.write_text(content)
 

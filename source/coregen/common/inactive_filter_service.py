@@ -99,14 +99,15 @@ class InactiveFilterService:
                 # Recursively filter the value
                 filtered_value = self._filter_data(value)
 
-                # Only include if there's content after filtering
-                if self._has_content(filtered_value):
+                # Keep active entries even when filtering emptied their children:
+                # an active parent must not vanish because all children are inactive
+                if filtered_value is not None:
                     filtered[key] = filtered_value
 
             return filtered
 
         elif isinstance(data, list):
-            filtered = []
+            filtered_list = []
             for item in data:
                 # Skip if this item is inactive
                 if self._has_active_false(item):
@@ -117,11 +118,11 @@ class InactiveFilterService:
                 # Recursively filter the item
                 filtered_item = self._filter_data(item)
 
-                # Only include if there's content after filtering
-                if self._has_content(filtered_item):
-                    filtered.append(filtered_item)
+                # Keep active items even when filtering emptied their children
+                if filtered_item is not None:
+                    filtered_list.append(filtered_item)
 
-            return filtered
+            return filtered_list
 
         else:
             # For non-dict/list types, return as-is
@@ -157,19 +158,6 @@ class InactiveFilterService:
         # Default to active (not filtered)
         return False
 
-    def _has_content(self, data: Any) -> bool:
-        """Check if data has meaningful content after filtering.
-
-        Args:
-            data: Data to check
-
-        Returns:
-            True if data has content, False if it's empty
-        """
-        if isinstance(data, (dict, list)):
-            return len(data) > 0
-        return data is not None
-
     def _get_name(self, data: Any) -> str:
         """Extract name from data for logging purposes.
 
@@ -186,38 +174,6 @@ class InactiveFilterService:
             return str(data["name"])
 
         return "unknown"
-
-    def get_inactive_counts(self, data: dict[str, Any]) -> dict[str, int]:
-        """Get counts of inactive items in the data.
-
-        Useful for logging and reporting.
-
-        Args:
-            data: Data dictionary to analyze
-
-        Returns:
-            Dictionary with counts of inactive items by entity type
-        """
-        counts = {"workspaces": 0, "contexts": 0, "components": 0}
-
-        # Count inactive items in each entity type
-        for entity_type, plural_key in [
-            ("workspace", "workspaces"),
-            ("context", "contexts"),
-            ("component", "components"),
-        ]:
-            if plural_key in data:
-                entities = data[plural_key]
-                if isinstance(entities, dict):
-                    for entity_data in entities.values():
-                        if self._has_active_false(entity_data):
-                            counts[plural_key] += 1
-                elif isinstance(entities, list):
-                    for entity in entities:
-                        if self._has_active_false(entity):
-                            counts[plural_key] += 1
-        self.logger.debug(f"Inactive counts: {counts}")
-        return counts
 
     def filter_complete_model(
         self, complete_model: dict[str, dict[str, Any]], include_inactive: bool = False

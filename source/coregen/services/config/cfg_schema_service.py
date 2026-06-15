@@ -7,7 +7,7 @@ from coregen.config_model.models.components import Component
 from coregen.config_model.models.context import Context
 from coregen.config_model.models.settings import CoregenSettings, get_settings
 from coregen.config_model.models.workspace import WorkspaceConfig
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.services_base import ServicesBase
 
 # Get settings instance at module level for default values
 settings = get_settings()
@@ -27,7 +27,7 @@ SCHEMA_TYPES = [
 ]
 
 
-class ConfigSchemaService(ConfigServiceBase):
+class ConfigSchemaService(ServicesBase):
     """Service for handling schema operations."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -44,15 +44,6 @@ class ConfigSchemaService(ConfigServiceBase):
             f"Initialized ConfigSchemaService with {len(self._model_map)} schema types"
         )
         self.logger.debug(f"Available schema types: {list(self._model_map.keys())}")
-
-    def get_schema_types(self) -> list[str]:
-        """
-        Get the list of valid schema types.
-
-        Returns:
-            List of valid schema types
-        """
-        return SCHEMA_TYPES
 
     def get_schema(self, schema_type: str) -> Any:
         """
@@ -103,7 +94,7 @@ class ConfigSchemaService(ConfigServiceBase):
             f"process_schema_request called with types: {schema_types}, format: {output_format}"
         )
 
-        result = {
+        result: dict[str, Any] = {
             "schema_data": {},
             "valid_types": [],
             "unknown_types": [],

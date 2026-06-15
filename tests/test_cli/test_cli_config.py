@@ -5,6 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
+from coregen.services.config.cfg_generate_service import GenerateConfigResult
+from coregen.services.config.cfg_init_service import InitResult
+
 
 def test_config_view(cli_runner, cli_app):
     """Test the config view command."""
@@ -267,7 +270,7 @@ def test_config_init_with_force(cli_runner, cli_app, force_flag):
         # Configure the instance that will be created
         mock_instance = mock_service_class.return_value
         # Mock the initialize_config method with appropriate return value
-        mock_instance.initialize_config.return_value = True
+        mock_instance.initialize_config.return_value = InitResult(success=True)
 
         # Build command with or without force flag
         cmd = ["config", "init"]
@@ -307,7 +310,7 @@ def test_config_init_with_existing_config(cli_runner, cli_app, tmp_path):
     ) as mock_service_class:
         mock_instance = mock_service_class.return_value
         # Mock successful initialization
-        mock_instance.initialize_config.return_value = True
+        mock_instance.initialize_config.return_value = InitResult(success=True)
 
         # Run command with existing config file
         result = cli_runner.invoke(
@@ -351,7 +354,7 @@ def test_config_generate_command(cli_runner, cli_app):
         "coregen.cli.commands.config.cfg_generate.ConfigGenerateService"
     ) as mock_service_class:
         mock_instance = mock_service_class.return_value
-        mock_instance.generate_config.return_value = True
+        mock_instance.generate_config.return_value = GenerateConfigResult()
 
         # Run command with various options
         result = cli_runner.invoke(
@@ -405,7 +408,7 @@ def test_config_init_service_integration(cli_runner, cli_app):
         "coregen.cli.commands.config.cfg_init.ConfigInitService"
     ) as mock_service_class:
         mock_instance = mock_service_class.return_value
-        mock_instance.initialize_config.return_value = True
+        mock_instance.initialize_config.return_value = InitResult(success=True)
 
         # Run with various options to test they're passed through
         result = cli_runner.invoke(

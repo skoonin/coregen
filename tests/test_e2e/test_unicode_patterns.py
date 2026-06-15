@@ -26,8 +26,7 @@ def test_unicode_component_names(env_setup, run_cli_command):
 
     # Create a new context with Unicode components
     unicode_context_file = test_context / "context-unicode-cgvalues.yaml"
-    unicode_context_file.write_text(
-        """context:
+    unicode_context_file.write_text("""context:
   name: context-unicode
   environment: dev
   component_type: component
@@ -69,8 +68,7 @@ def test_unicode_component_names(env_setup, run_cli_command):
         component_name: mixed_混合_component
         namespace: unicode-test
         description: "Mixed ASCII/Unicode component"
-"""
-    )
+""")
 
     # Test listing all components
     result = run_cli_command("get 'cm/*' -c test_data/.cgconfig.yaml")
@@ -160,8 +158,7 @@ def test_unicode_wildcard_patterns(env_setup, run_cli_command):
 
     # Create a new context with components having Unicode patterns
     pattern_context_file = test_context / "context-patterns-cgvalues.yaml"
-    pattern_context_file.write_text(
-        """context:
+    pattern_context_file.write_text("""context:
   name: context-patterns
   environment: dev
   component_type: component
@@ -199,8 +196,7 @@ def test_unicode_wildcard_patterns(env_setup, run_cli_command):
       vars:
         component_name: test_テスト_test
         description: "Japanese in middle"
-"""
-    )
+""")
 
     # Test prefix wildcard with Unicode
     result = run_cli_command("get 'cm/начало*' -c test_data/.cgconfig.yaml")
@@ -233,8 +229,7 @@ def test_unicode_json_output(env_setup, run_cli_command):
     test_context = contexts_dir / "context-dev"
 
     unicode_rich_context_file = test_context / "context-rich-cgvalues.yaml"
-    unicode_rich_context_file.write_text(
-        """context:
+    unicode_rich_context_file.write_text("""context:
   name: context-rich
   environment: dev
   component_type: component
@@ -258,8 +253,7 @@ def test_unicode_json_output(env_setup, run_cli_command):
         metadata:
           comment: "This component supports 多种语言 including 日本語 and русский"
           emoji_test: "🚀 🎯 ✨"
-"""
-    )
+""")
 
     # Get component with JSON output
     result = run_cli_command(
@@ -318,8 +312,7 @@ def test_unicode_yaml_output(env_setup, run_cli_command):
     test_context = contexts_dir / "context-dev"
 
     unicode_rich_context_file = test_context / "context-rich-yaml-cgvalues.yaml"
-    unicode_rich_context_file.write_text(
-        """context:
+    unicode_rich_context_file.write_text("""context:
   name: context-rich-yaml
   environment: dev
   component_type: component
@@ -343,8 +336,7 @@ def test_unicode_yaml_output(env_setup, run_cli_command):
         metadata:
           comment: "This component supports 多种语言 including 日本語 and русский"
           emoji_test: "🚀 🎯 ✨"
-"""
-    )
+""")
 
     # Get the unicode_rich component with YAML output
     result = run_cli_command(
@@ -391,8 +383,7 @@ def test_mixed_ascii_unicode_patterns(env_setup, run_cli_command):
 
     # Create components with mixed patterns
     mixed_context_file = test_context / "context-mixed-cgvalues.yaml"
-    mixed_context_file.write_text(
-        """context:
+    mixed_context_file.write_text("""context:
   name: context-mixed
   environment: dev
   component_type: component
@@ -426,8 +417,7 @@ def test_mixed_ascii_unicode_patterns(env_setup, run_cli_command):
         for_commit: false
       vars:
         component_name: test_123_测试
-"""
-    )
+""")
 
     # Test various mixed patterns
     test_patterns = [
@@ -480,8 +470,7 @@ def test_unicode_type_filtering(env_setup, run_cli_command):
 
     # Create a context with Unicode component
     type_context_file = test_context / "context-type-cgvalues.yaml"
-    type_context_file.write_text(
-        """context:
+    type_context_file.write_text("""context:
   name: context-type
   environment: dev
   component_type: component
@@ -503,8 +492,7 @@ def test_unicode_type_filtering(env_setup, run_cli_command):
       vars:
         component_name: regular_component
         type: "service"
-"""
-    )
+""")
 
     # Test listing all components with Unicode names
     result = run_cli_command("get 'cm/*' -c test_data/.cgconfig.yaml")

@@ -10,10 +10,10 @@ from typing import Any
 
 from coregen.config_model.loader import ConfigLoader
 from coregen.config_model.models.settings import get_settings
-from coregen.services.config.cfg_base_service import ConfigServiceBase
+from coregen.services.services_base import ServicesBase
 
 
-class ConfigViewBaseService(ConfigServiceBase):
+class ConfigViewBaseService(ServicesBase):
     """Base service for viewing configuration data.
 
     This class provides common functionality for all view-related services.
@@ -24,15 +24,24 @@ class ConfigViewBaseService(ConfigServiceBase):
         """Initialize the configuration view service."""
         super().__init__(*args, **kwargs)
         self.settings = get_settings()
-        # Create a separate loader for raw file access
-        # Pass the global options from the base class to ConfigLoader
-        self.config_loader = ConfigLoader(
-            dry_run=self.dry_run,
-            file_action=self.file_action,
-            quiet=self.quiet,
-            verbose=self.verbose,
-            no_color=self.no_color,
-        )
+        self._config_loader: ConfigLoader | None = None
+
+    @property
+    def config_loader(self) -> ConfigLoader:
+        """Loader for raw file access, built lazily on first use.
+
+        Lazy per the lazy-loading convention: only the raw/discovered view
+        modes touch it, so the resolved-view path never constructs it.
+        """
+        if self._config_loader is None:
+            self._config_loader = ConfigLoader(
+                dry_run=self.dry_run,
+                file_action=self.file_action,
+                quiet=self.quiet,
+                verbose=self.verbose,
+                no_color=self.no_color,
+            )
+        return self._config_loader
 
     def _view_raw_config(self, config_file_path: Path) -> dict[str, Any]:
         """View the raw configuration file exactly as it appears on disk, without any processing.

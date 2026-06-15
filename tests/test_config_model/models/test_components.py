@@ -1,9 +1,5 @@
 """Tests for config.models.components module."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
-from unittest.mock import patch
-
 import pytest
 from pydantic import ValidationError
 
@@ -12,19 +8,6 @@ from coregen.config_model.models.components import (
     ComponentConfig,
     ComponentDependency,
 )
-
-
-@contextmanager
-def skip_path_validation() -> Iterator[None]:
-    """Skip path validation in tests for model components."""
-    # Create a version of Path.exists that always returns True for tests
-
-    def mock_exists(self) -> bool:
-        return True
-
-    # Apply the patch
-    with patch("pathlib.Path.exists", mock_exists):
-        yield
 
 
 class TestComponentDependency:
@@ -38,10 +21,9 @@ class TestComponentDependency:
 
     def test_create_dependency_with_path(self) -> None:
         """Should create a dependency with path."""
-        with skip_path_validation():
-            dependency = ComponentDependency(name="test-dependency", path="custom/path")
-            assert dependency.name == "test-dependency"
-            assert dependency.path == "custom/path"
+        dependency = ComponentDependency(name="test-dependency", path="custom/path")
+        assert dependency.name == "test-dependency"
+        assert dependency.path == "custom/path"
 
     def test_empty_name_raises_error(self) -> None:
         """Should raise error when name is empty."""
@@ -67,23 +49,22 @@ class TestComponentConfig:
 
     def test_create_custom_config(self) -> None:
         """Should create config with custom values."""
-        with skip_path_validation():
-            config = ComponentConfig(
-                active=True,
-                required=True,
-                for_commit=True,
-                priority=5,
-                path="custom/path",
-                dependencies=[{"name": "dep1"}, {"name": "dep2", "path": "dep2/path"}],
-            )
-            assert config.active is True
-            assert config.required is True
-            assert config.for_commit is True
-            assert config.priority == 5
-            assert config.path == "custom/path"
-            assert len(config.dependencies) == 2
-            assert config.dependencies[0].name == "dep1"
-            assert config.dependencies[1].name == "dep2"
+        config = ComponentConfig(
+            active=True,
+            required=True,
+            for_commit=True,
+            priority=5,
+            path="custom/path",
+            dependencies=[{"name": "dep1"}, {"name": "dep2", "path": "dep2/path"}],
+        )
+        assert config.active is True
+        assert config.required is True
+        assert config.for_commit is True
+        assert config.priority == 5
+        assert config.path == "custom/path"
+        assert len(config.dependencies) == 2
+        assert config.dependencies[0].name == "dep1"
+        assert config.dependencies[1].name == "dep2"
 
     def test_for_commit_can_be_inactive(self) -> None:
         """For commit components can be inactive - no validation prevents this."""
@@ -166,45 +147,21 @@ class TestComponent:
 
     def test_get_dependencies(self) -> None:
         """Should return dependencies as list of dicts."""
-        with skip_path_validation():
-            component = Component(
-                name="test-component",
-                config={
-                    "dependencies": [
-                        {"name": "dep1"},
-                        {"name": "dep2", "path": "path/to/dep2"},
-                    ]
-                },
-            )
-            deps = component.get_dependencies()
-            assert len(deps) == 2
-            assert deps[0]["name"] == "dep1"
-            assert "path" not in deps[0]
-            assert deps[1]["name"] == "dep2"
-            assert deps[1]["path"] == "path/to/dep2"
-
-    def test_has_dependency(self) -> None:
-        """Should check if component has a dependency."""
         component = Component(
             name="test-component",
-            config={"dependencies": [{"name": "dep1"}, {"name": "dep2"}]},
+            config={
+                "dependencies": [
+                    {"name": "dep1"},
+                    {"name": "dep2", "path": "path/to/dep2"},
+                ]
+            },
         )
-        assert component.has_dependency("dep1") is True
-        assert component.has_dependency("dep2") is True
-        assert component.has_dependency("dep3") is False
-
-    def test_add_dependency(self) -> None:
-        """Should add a dependency if it doesn't exist."""
-        component = Component(
-            name="test-component", config={"dependencies": [{"name": "dep1"}]}
-        )
-        component.add_dependency(ComponentDependency(name="dep2"))
-        assert len(component.config.dependencies) == 2
-        assert component.has_dependency("dep2") is True
-
-        # Adding existing dependency should not change anything
-        component.add_dependency(ComponentDependency(name="dep1"))
-        assert len(component.config.dependencies) == 2
+        deps = component.get_dependencies()
+        assert len(deps) == 2
+        assert deps[0]["name"] == "dep1"
+        assert "path" not in deps[0]
+        assert deps[1]["name"] == "dep2"
+        assert deps[1]["path"] == "path/to/dep2"
 
     def test_validate_extra_fields(self) -> None:
         """Should validate extra fields in the component."""
@@ -290,3 +247,23 @@ class TestComponent:
         assert dump["environment"] == "dev"
         assert dump["workspace"] == "test-ws"
         assert dump["context"] == "dev-ctx"
+
+
+class TestDependencyPathNoFilesystemCheck:
+    """Dependency paths must validate without touching the filesystem.
+
+    Paths are relative to the context directory, resolved after model
+    construction; an existence check at validation time ran against the CWD
+    and rejected valid configs (tests previously masked this by patching
+    Path.exists globally).
+    """
+
+    def test_nonexistent_relative_path_is_accepted(self) -> None:
+        dependency = ComponentDependency(
+            name="dep", path="definitely/not/in/cwd/anywhere"
+        )
+        assert dependency.path == "definitely/not/in/cwd/anywhere"
+
+    def test_empty_path_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ComponentDependency(name="dep", path="   ")

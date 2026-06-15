@@ -23,13 +23,11 @@ def test_config_force_overwrite(temp_test_dir):
     # Create initial config file
     config_file = config_test_dir / ".cgconfig.yaml"
     with open(config_file, "w") as f:
-        f.write(
-            """# Initial test config with a unique marker
+        f.write("""# Initial test config with a unique marker
 workspaces:
   - name: initial-workspace
     context_type: custom-type-for-test
-"""
-        )
+""")
 
     # Store the file content to compare later
     initial_content = config_file.read_text()

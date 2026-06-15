@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
+
+EntityT = TypeVar("EntityT")
 
 
 # Custom exception classes for component validation errors
@@ -28,29 +30,12 @@ class ComponentSorterService:
     Components are sorted by priority and name only - dependencies do NOT affect sort order.
     """
 
-    def __init__(self, config: Any = None, **kwargs: Any) -> None:
-        """Initialize service. Legacy kwargs are accepted for compatibility."""
-        # Accept legacy parameters for backward compatibility
-        if config:
-            # Extract values from config object if provided
-            self.none_priority_value = getattr(config, "none_priority_value", 999)
-            self.cycle_break_strategy = getattr(
-                config, "cycle_break_strategy", "stable"
-            )
-            # strict_validation is deprecated - all rules now run always
-            _ = getattr(config, "strict_validation", False)  # Accept but ignore
-        else:
-            self.none_priority_value = kwargs.get("none_priority_value", 999)
-            self.cycle_break_strategy = kwargs.get("cycle_break_strategy", "stable")
-            # strict_validation is deprecated - all rules now run always
-            _ = kwargs.get("strict_validation", False)  # Accept but ignore
-
     def sort_entities(
         self,
-        entities: Sequence[dict[str, Any]] | Sequence[Any],
+        entities: Sequence[EntityT],
         entity_type: Literal["workspace", "context", "component"],
         skip_validation: bool = False,
-    ) -> list[dict[str, Any]] | list[Any]:
+    ) -> list[EntityT]:
         """Sort entities with consistent ordering rules.
 
         Args:
@@ -97,8 +82,6 @@ class ComponentSorterService:
                 self._validate_components_grouped(items)
             # Simple sort by context, workspace, priority, name
             return sorted(items, key=self._component_sort_key)
-
-        return items
 
     def _validate_components_grouped(self, components: list[Any]) -> None:
         """Validate components grouped by context.
@@ -287,10 +270,13 @@ class ComponentSorterService:
 
     def _component_sort_key(self, comp: Any) -> tuple:
         """Generate sort key for a component."""
+        # (is_none, priority) keeps null priority last for ANY numeric priority,
+        # avoiding a sentinel that collides with a real priority value
+        priority = self._get_priority(comp)
         return (
             self._get_field(comp, "workspace"),
             self._get_field(comp, "context"),
-            self._get_priority(comp) if self._get_priority(comp) is not None else 999,
+            (priority is None, priority if priority is not None else 0),
             self._get_field(comp, "name"),
         )
 
@@ -359,11 +345,6 @@ class ComponentSorterService:
 
     def _get_dependencies(self, obj: Any) -> list[str]:
         """Get dependencies from dict or object."""
-        # Check for legacy accessor function
-        if hasattr(self, "_legacy_get_dependencies") and self._legacy_get_dependencies:
-            deps = self._legacy_get_dependencies(obj)
-            return deps if deps else []
-
         if isinstance(obj, dict):
             config = obj.get("config", {}) or {}
             deps = config.get("dependencies", []) or []
@@ -398,52 +379,4 @@ class ComponentSorterService:
                 result.append(dep)
             elif hasattr(dep, "name"):
                 result.append(str(getattr(dep, "name")))  # Use getattr for type safety
-        return result
-
-    # ========== Legacy Compatibility Methods ==========
-    # These methods are maintained for backward compatibility
-
-    def sort_component_dicts(
-        self,
-        components: Sequence[dict[str, Any]],
-        **_kwargs: Any,  # Accepted for backward compatibility
-    ) -> list[dict[str, Any]]:
-        """Legacy method for sorting component dictionaries.
-
-        This method is maintained for backward compatibility.
-        New code should use sort_entities() instead.
-        """
-        return self.sort_entities(components, "component")
-
-    def sort_changes(
-        self,
-        changes: Sequence[Any],
-        **_kwargs: Any,  # Accepted for backward compatibility
-    ) -> list[Any]:
-        """Legacy method for sorting change objects.
-
-        This method is maintained for backward compatibility.
-        New code should use sort_entities() instead.
-        """
-        return self.sort_entities(changes, "component")
-
-    def sort_table_rows(
-        self,
-        rows: Sequence[dict[str, Any]],
-        **kwargs: Any,
-    ) -> list[dict[str, Any]]:
-        """Legacy method for sorting table rows.
-
-        This method is maintained for backward compatibility.
-        New code should use sort_entities() instead.
-        """
-        # Store legacy accessor if provided
-        self._legacy_get_dependencies = kwargs.get("deps_accessor")
-
-        # Use the new unified method
-        result = self.sort_entities(rows, "component")
-
-        # Clear legacy accessor
-        self._legacy_get_dependencies = None
-
         return result

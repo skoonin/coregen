@@ -7,7 +7,7 @@ and path pattern processing.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from coregen.cli.global_options import GlobalOptions
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from coregen.cli.enums.enum_file_action import FileAction
 from coregen.common.console import Console
 from coregen.common.file_manager import FileManager
-from coregen.common.filter_service import FilterService
+from coregen.common.filter_service import FilterService, FilterValidationError
 from coregen.common.path_service import PathService
 from coregen.common.pattern.facade import PatternMatcher
 from coregen.common.workspace_initializer import WorkspaceInitializer
@@ -65,55 +65,47 @@ class ServicesBase(ServiceBase):
             config_file: Optional path to the configuration file
             global_options: Optional GlobalOptions instance instead of individual options
         """
-        # If global_options is provided, use it instead of individual options
+        # If global_options is provided, pass it to parent which handles extraction
         if global_options is not None:
-            # Extract values from GlobalOptions
-            dry_run = getattr(global_options, "dry_run", dry_run)
-            file_action = getattr(global_options, "file_action", file_action)
-            quiet = getattr(global_options, "quiet", quiet)
-            verbose = getattr(global_options, "verbose", verbose)
-            no_color = getattr(global_options, "no_color", no_color)
-            config_file = getattr(global_options, "config_file", config_file)
-
-            # Store global options for service use
-            self._global_options = global_options
+            super().__init__(
+                console=console,
+                file_manager=file_manager,
+                workspace_initializer=workspace_initializer,
+                global_options=global_options,
+                config_file=getattr(global_options, "config_file", config_file),
+            )
         else:
-            # Store individual options for reference
-            self._global_options = None
-
-        # Call the parent class constructor
-        super().__init__(
-            console=console,
-            file_manager=file_manager,
-            workspace_initializer=workspace_initializer,
-            dry_run=dry_run,
-            file_action=file_action,
-            quiet=quiet,
-            verbose=verbose,
-            no_color=no_color,
-            config_file=config_file,
-        )
+            super().__init__(
+                console=console,
+                file_manager=file_manager,
+                workspace_initializer=workspace_initializer,
+                dry_run=dry_run,
+                file_action=file_action,
+                quiet=quiet,
+                verbose=verbose,
+                no_color=no_color,
+                config_file=config_file,
+            )
 
         # Initialize configuration provider if not provided
         self._config_provider = config_provider or ConfigurationProvider(
             config_mode=True,
             lenient_validation=True,
-            # Pass global options to the configuration provider
-            dry_run=dry_run,
-            file_action=file_action,
-            quiet=quiet,
-            verbose=verbose,
-            no_color=no_color,
+            dry_run=self.dry_run,
+            file_action=self.file_action,
+            quiet=self.quiet,
+            verbose=self.verbose,
+            no_color=self.no_color,
         )
 
         # Initialize path service from config provider
         self._path_service = self._config_provider.path_service
 
         # Initialize config access
-        self._config_access = None
+        self._config_access: ConfigAccess | None = None
 
         # Initialize filter service (will be created when needed)
-        self._filter_service = None
+        self._filter_service: FilterService | None = None
 
         # Update workspace initializer with path service if needed
         if workspace_initializer is None and self._workspace_initializer:
@@ -203,7 +195,7 @@ class ServicesBase(ServiceBase):
         assert self._filter_service is not None  # Always set in the if block above
         return self._filter_service
 
-    def _auto_append_recursive_pattern(self, patterns: list[str]) -> list[str]:
+    def _auto_append_recursive_pattern(self, patterns: Any) -> list[str]:
         """Auto-append /* to bare logical type patterns only.
 
         Only applies to the bare logical type names to avoid breaking any existing patterns:
@@ -217,8 +209,11 @@ class ServicesBase(ServiceBase):
         - Any pattern with path components (e.g., 'workspace/aws', 'context/dev')
         - Filesystem patterns (not starting with workspace/, context/, component/)
 
+        Accepts loosely-typed input (None, a bare string, or a list with
+        non-string elements) and normalizes it defensively.
+
         Args:
-            patterns: List of original patterns
+            patterns: Original patterns (list, single string, or None)
 
         Returns:
             List of patterns with /* appended where appropriate
@@ -420,19 +415,17 @@ class ServicesBase(ServiceBase):
 
         self.console.debug(f"Matched {len(aggregated_result['components'])} components")
 
-        # Report on failed patterns if any
-        if failed_patterns:
-            # Show standard warning for patterns that didn't match
-            if not self.quiet:
+        # Report on failed patterns once: the all-failed case subsumes the
+        # per-pattern count, and the caller reports its own empty-result error
+        if failed_patterns and not self.quiet:
+            if len(patterns) == len(failed_patterns):
+                self.console.warning(
+                    f"No configuration elements were matched by any pattern: {failed_patterns}"
+                )
+            else:
                 self.console.warning(
                     f"{len(failed_patterns)} pattern(s) did not match anything: {failed_patterns}"
                 )
-
-            if len(patterns) == len(failed_patterns):
-                if not self.quiet:
-                    self.console.warning(
-                        "No configuration elements were matched by any pattern"
-                    )
 
         # NOTE: User-facing info about matched contexts should be handled by CLI layer
         # Services should only return raw data for the CLI to format and display
@@ -466,20 +459,6 @@ class ServicesBase(ServiceBase):
                 else:
                     aggregated[key][sub_key] = sub_value
 
-    def apply_filters(
-        self, elements: dict[str, Any], filters: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        """Apply filters to configuration elements.
-
-        Args:
-            elements: Dictionary of configuration elements
-            filters: List of filter specifications
-
-        Returns:
-            Filtered dictionary of configuration elements
-        """
-        return self.filter_service.apply_filters(elements, filters)
-
     def parse_filter_expression(self, filter_string: str) -> dict[str, Any]:
         """Parse a filter expression into a structured filter specification.
 
@@ -491,39 +470,54 @@ class ServicesBase(ServiceBase):
         """
         return self.filter_service.parse_filter_expression(filter_string)
 
-    def determine_output_sections(
-        self, patterns: list[str] | None = None, entity_type: str | None = None
-    ) -> set[str]:
-        """Determine which output sections to include based on patterns and entity type.
+    # Hierarchy depth (workspace > context > component). A pattern may be
+    # filtered by its own or an ancestor entity's fields -- e.g. a cm/ component
+    # pattern can be scoped by context.* or workspace.* (cross-entity scoping,
+    # which coregen itself emits in its matrix `command` field) -- but not by a
+    # descendant's fields (a workspace pattern cannot be filtered by component.*).
+    _ENTITY_DEPTH = {"workspace": 0, "context": 1, "component": 2}
+
+    def validate_pattern_filter_compatibility(
+        self, patterns: list[str], filters: list[str]
+    ) -> None:
+        """Validate that filter entity prefixes are compatible with the patterns.
+
+        A filter on an entity is allowed when at least one pattern selects that
+        entity or one of its descendants (filtering by self or an ancestor). A
+        filter targeting a more specific entity than any pattern is rejected,
+        since it cannot apply.
 
         Args:
-            patterns: Optional list of patterns for pattern-based section determination
-            entity_type: Optional entity type filter to override section determination
+            patterns: Patterns being used (e.g. "cm/*", "c/*").
+            filters: Raw filter expressions being applied.
 
-        Returns:
-            Set of section names to include in output ('workspaces', 'contexts', 'components')
+        Raises:
+            ValueError: When a filter targets a descendant of every pattern.
         """
-        if entity_type:
-            # --type flag specified: override section determination
-            if entity_type == "workspace":
-                return {"workspaces"}
-            elif entity_type == "context":
-                return {"contexts"}
-            elif entity_type == "component":
-                return {"components"}
-            else:
-                self.logger.warning(
-                    f"Unknown entity type: {entity_type}, using pattern-based sections"
-                )
-                # Fall through to pattern-based logic
-
-        if patterns is None:
-            # JSON input or no patterns: include all sections
-            return {"workspaces", "contexts", "components"}
-        else:
-            # Use pattern-based section determination (must be implemented by subclass)
-            if hasattr(self, "_determine_sections_from_patterns"):
-                return cast(set[str], self._determine_sections_from_patterns(patterns))
-            else:
-                # Fallback to all sections if method not implemented
-                return {"workspaces", "contexts", "components"}
+        prefixes = {
+            "context": ("c/", "context/"),
+            "component": ("cm/", "component/"),
+            "workspace": ("w/", "workspace/"),
+        }
+        pattern_depths = [
+            self._ENTITY_DEPTH[etype]
+            for pattern in patterns
+            for etype, pres in prefixes.items()
+            if pattern.startswith(pres)
+        ]
+        if not pattern_depths:
+            # Only unknown/filesystem patterns; nothing to validate against.
+            return
+        deepest_pattern = max(pattern_depths)
+        for filter_expr in filters:
+            for entity, pres in prefixes.items():
+                if (
+                    filter_expr.startswith(f"{entity}.")
+                    and self._ENTITY_DEPTH[entity] > deepest_pattern
+                ):
+                    raise FilterValidationError(
+                        f"Pattern/filter mismatch: filter '{filter_expr}' targets "
+                        f"{entity} fields, which are more specific than the selected "
+                        f"pattern. Use a '{pres[0]}*' pattern to filter {entity} "
+                        f"fields."
+                    )
