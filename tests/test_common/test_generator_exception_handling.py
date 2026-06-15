@@ -449,3 +449,23 @@ class TestGeneratorLongPatternEdgeCases:
         content = output_path.read_text()
         assert "Line 0: value_0" in content
         assert "Line 999: value_9" in content
+
+
+class TestNonUndefinedTemplateErrors:
+    """Regression test for JinjaTemplateError subtypes other than UndefinedError.
+
+    The error-message variable was only assigned inside the UndefinedError
+    branch, so any other TemplateError subtype (e.g. TemplateNotFound from a
+    missing include) crashed with UnboundLocalError and lost the real message.
+    """
+
+    def test_template_not_found_reports_original_message(self, tmp_path):
+        template_path = tmp_path / "with_include.j2"
+        output_path = tmp_path / "with_include.txt"
+        template_path.write_text("{% include 'nonexistent-partial.j2' %}")
+
+        errors = Generator.generate(template_path, output_path, {})
+
+        assert len(errors) > 0
+        assert any("Template error" in error for error in errors)
+        assert any("nonexistent-partial" in error for error in errors)

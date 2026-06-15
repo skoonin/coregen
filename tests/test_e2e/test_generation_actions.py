@@ -193,6 +193,46 @@ def test_archive_file_action(gen_test_env: dict[str, Any], run_cli_command):
 
 
 @pytest.mark.e2e
+def test_explicit_file_action_flag_beats_env_var(
+    gen_test_env: dict[str, Any], run_cli_command
+):
+    """An explicit --file-action flag must override the CG_FILE_ACTION env var.
+
+    Regression: with interspersed parsing the main callback can own the explicit
+    flag while the subcommand's parameter falls back to the auto_envvar value;
+    the env-sourced value must not clobber the user's explicit choice.
+    """
+    os.chdir(gen_test_env["root_dir"])
+
+    result = run_cli_command(
+        f"generate context/context-dev component/metrics-server --config-file {gen_test_env['config_path']}",
+        expected_code=0,
+    )
+    assert result["success"]
+
+    readme_file_path = None
+    for root, dirs, files in os.walk(gen_test_env["root_dir"]):
+        if "metrics-server" in root and "README.md" in files:
+            readme_file_path = Path(root) / "README.md"
+            break
+    assert readme_file_path is not None, "Could not find generated README.md"
+
+    modified_content = readme_file_path.read_text() + "\n# Sentinel for env test\n"
+    readme_file_path.write_text(modified_content)
+
+    result = run_cli_command(
+        f"generate context/context-dev component/metrics-server --file-action=skip --config-file {gen_test_env['config_path']}",
+        expected_code=0,
+        env={"CG_FILE_ACTION": "delete"},
+    )
+    assert result["success"]
+
+    assert (
+        "Sentinel for env test" in readme_file_path.read_text()
+    ), "CG_FILE_ACTION env var overrode the explicit --file-action=skip flag"
+
+
+@pytest.mark.e2e
 def test_dry_run_mode(gen_test_env: dict[str, Any], run_cli_command):
     """Verify dry-run mode doesn't modify files."""
     # Set up working directory

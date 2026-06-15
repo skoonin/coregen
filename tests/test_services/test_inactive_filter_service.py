@@ -196,51 +196,6 @@ class TestInactiveFilterService:
         assert "comp2" not in result["components"]
 
     # ========================================================================
-    # get_inactive_counts Tests
-    # ========================================================================
-
-    def test_get_inactive_counts_dict_format(
-        self, service: InactiveFilterService, sample_data_dict: dict[str, Any]
-    ):
-        """Test get_inactive_counts returns correct counts for dict format."""
-        result = service.get_inactive_counts(sample_data_dict)
-
-        assert result["workspaces"] == 1  # ws2 is inactive
-        assert result["contexts"] == 1  # ctx2 is inactive
-        assert result["components"] == 1  # comp2 is inactive
-
-    def test_get_inactive_counts_list_format(
-        self, service: InactiveFilterService, sample_data_list: dict[str, Any]
-    ):
-        """Test get_inactive_counts returns correct counts for list format."""
-        result = service.get_inactive_counts(sample_data_list)
-
-        assert result["workspaces"] == 1
-        assert result["contexts"] == 1
-        assert result["components"] == 1
-
-    def test_get_inactive_counts_empty_data(self, service: InactiveFilterService):
-        """Test get_inactive_counts handles empty data."""
-        result = service.get_inactive_counts({})
-
-        assert result["workspaces"] == 0
-        assert result["contexts"] == 0
-        assert result["components"] == 0
-
-    def test_get_inactive_counts_all_active(self, service: InactiveFilterService):
-        """Test get_inactive_counts with all active items."""
-        data = {
-            "workspaces": {"ws1": {"name": "ws1", "active": True}},
-            "contexts": {"ctx1": {"name": "ctx1", "active": True}},
-            "components": {"comp1": {"name": "comp1", "active": True}},
-        }
-        result = service.get_inactive_counts(data)
-
-        assert result["workspaces"] == 0
-        assert result["contexts"] == 0
-        assert result["components"] == 0
-
-    # ========================================================================
     # filter_complete_model Tests - Parent-Child Awareness
     # ========================================================================
 
@@ -369,49 +324,26 @@ class TestInactiveFilterService:
 
         assert result is False
 
-    # ========================================================================
-    # _has_content Tests - Helper Method
-    # ========================================================================
+    def test_filter_inactive_keeps_active_parent_with_all_inactive_children(
+        self, service: InactiveFilterService
+    ):
+        """An active parent survives even when every child filters out."""
+        data = {
+            "contexts": {
+                "ctx1": {
+                    "name": "ctx1",
+                    "active": True,
+                    "components": {
+                        "cmp1": {"active": False},
+                        "cmp2": {"active": False},
+                    },
+                }
+            }
+        }
+        result = service.filter_inactive(data, include_inactive=False)
 
-    def test_has_content_with_non_empty_dict(self, service: InactiveFilterService):
-        """Test _has_content returns True for non-empty dict."""
-        data = {"key": "value"}
-        result = service._has_content(data)
-
-        assert result is True
-
-    def test_has_content_with_empty_dict(self, service: InactiveFilterService):
-        """Test _has_content returns False for empty dict."""
-        data = {}
-        result = service._has_content(data)
-
-        assert result is False
-
-    def test_has_content_with_non_empty_list(self, service: InactiveFilterService):
-        """Test _has_content returns True for non-empty list."""
-        data = ["item1", "item2"]
-        result = service._has_content(data)
-
-        assert result is True
-
-    def test_has_content_with_empty_list(self, service: InactiveFilterService):
-        """Test _has_content returns False for empty list."""
-        data = []
-        result = service._has_content(data)
-
-        assert result is False
-
-    def test_has_content_with_none(self, service: InactiveFilterService):
-        """Test _has_content returns False for None."""
-        result = service._has_content(None)
-
-        assert result is False
-
-    def test_has_content_with_string(self, service: InactiveFilterService):
-        """Test _has_content returns True for non-None string."""
-        result = service._has_content("test")
-
-        assert result is True
+        assert "ctx1" in result["contexts"]
+        assert result["contexts"]["ctx1"]["components"] == {}
 
     # ========================================================================
     # _get_name Tests - Helper Method

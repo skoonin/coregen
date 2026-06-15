@@ -1,6 +1,5 @@
 """Generate files command."""
 
-import sys
 import traceback
 from pathlib import Path
 from typing import Annotated, Any
@@ -13,6 +12,7 @@ from coregen.cli.enums.enum_file_action import FileAction
 from coregen.cli.enums.enum_output_format import GenerateOutputFormat, OutputFormat
 from coregen.cli.global_options import GlobalOptions
 from coregen.common.console import Console
+from coregen.common.filter_service import FilterValidationError
 from coregen.common.logger import Logger
 from coregen.config_model.models.settings import get_settings
 from coregen.services.generate.gen_generate_service import GenerateService
@@ -60,7 +60,7 @@ class GenerateCommand:
         self.ctx: typer.Context | None = None
         self.global_options: GlobalOptions | None = None
         self.service: Any | None = None
-        self.console = Console()
+        self.console = Console
         self.formatter = GenerateFormatter(self.console)
         self.output_format: Any | None = None  # Track output format for cleanup
 
@@ -75,12 +75,14 @@ class GenerateCommand:
             ),
         ] = None,
         # Command-specific options
-        filter: Annotated[
+        # Named "filters" (not "filter") so the Typer auto-envvar derives
+        # CG_FILTERS, matching get/check-pattern/detect-changes.
+        filters: Annotated[
             list[str] | None,
             typer.Option(
                 "--filter",
                 "-f",
-                help="Filter by properties",
+                help="Filter by properties. A pattern can be filtered by its own or an ancestor entity's fields (e.g. cm/* with component.*, context.*, or workspace.*); filtering by a more specific entity is rejected.",
                 **generate_params,
             ),
         ] = None,
@@ -219,7 +221,7 @@ class GenerateCommand:
 
         # Store command-specific options in context
         ctx.obj["paths"] = paths
-        ctx.obj["filter"] = filter
+        ctx.obj["filter"] = filters
         ctx.obj["include_inactive"] = include_inactive
         ctx.obj["type"] = type
         ctx.obj["skip_commit_dir"] = skip_commit_dir
@@ -239,11 +241,17 @@ class GenerateCommand:
         ctx.obj["quiet"] = quiet or parent_obj.get("quiet", False)
         ctx.obj["verbose"] = verbose or parent_obj.get("verbose", False)
 
-        # For non-boolean options, check if they differ from defaults
+        # For non-boolean options, store based on where the value came from.
+        # Comparing against the settings default cannot distinguish "user passed
+        # the flag" from "auto_envvar filled it in"; with interspersed parsing the
+        # main callback may own the explicit flag, so an env-sourced subcommand
+        # value must not clobber it (CG_FILE_ACTION vs --file-action=skip).
+        # Compared by enum name: Typer 0.26+ vendors click, so the ParameterSource
+        # class is not importable from a stable public location.
+        file_action_source = ctx.get_parameter_source("file_action")
         if (
-            file_action != settings.options.global_options.file_action
-            or "file_action" not in parent_obj
-        ):
+            file_action_source is not None and file_action_source.name == "COMMANDLINE"
+        ) or "file_action" not in parent_obj:
             ctx.obj["file_action"] = file_action
 
         # For config_file, only override if explicitly provided (different from default)
@@ -360,37 +368,27 @@ class GenerateCommand:
         )
 
         try:
-            # Set output format if needed
-            if self.output_format == GenerateOutputFormat.TABLE:
-                # For table output, we handle formatting ourselves
-                # Create a modified global_options with quiet=True for table output
-                if self.global_options is None:
-                    raise RuntimeError("Global options not initialized")
-                table_global_options = GlobalOptions(
-                    dry_run=self.global_options.dry_run,
-                    file_action=self.global_options.file_action,
-                    quiet=True,  # Suppress service output in table mode
-                    verbose=self.global_options.verbose,
-                    no_color=self.global_options.no_color,
-                    config_file=self.global_options.config_file,
-                )
-                # Create service instance with modified options
-                self.service = GenerateService(global_options=table_global_options)
-            else:
-                # For text output, ensure console is in correct mode
+            if self.global_options is None:
+                raise RuntimeError("Global options not initialized")
+
+            # The service returns structured data; the formatter renders it.
+            # Text mode prints per-component status to the console, so keep it
+            # in TEXT routing; table mode renders its own Rich table.
+            if self.output_format != GenerateOutputFormat.TABLE:
                 self.console.set_output_format(OutputFormat.TEXT)
-                # Create service instance with standard global options
-                if self.global_options is None:
-                    raise RuntimeError("Global options not initialized")
-                self.service = GenerateService(global_options=self.global_options)
+
+            self.service = GenerateService(global_options=self.global_options)
 
             # Process generation
             results = self._process_generation(options)
 
-            # Display results (unless quiet)
-            num_errors = 0
+            # The exit decision must not depend on whether results are
+            # displayed: count errors from the service results directly so
+            # --quiet runs still fail on generation errors (deduplicated the
+            # same way the formatter reports them)
+            num_errors = len(dict.fromkeys(results.get("errors", [])))
             if not options["quiet"]:
-                num_errors = self._display_results(results, options)
+                self._display_results(results, options)
 
         except TypeError as e:
             # Log detailed error for debugging
@@ -404,22 +402,28 @@ class GenerateCommand:
                 self.console.error("Run with CG_LOG_LEVEL=debug for detailed traceback")
             else:
                 self.console.error(f"Failed to generate files: {str(e)}")
-            sys.exit(1)
+            raise typer.Exit(1)
         except FileNotFoundError as e:
             self.logger.error(f"File not found: {str(e)}")
             self.console.error(f"File not found: {str(e)}")
             self.console.error(
                 "Please check that all required files and directories exist"
             )
-            sys.exit(1)
+            raise typer.Exit(1)
         except PermissionError as e:
             self.logger.error(f"Permission denied: {str(e)}")
             self.console.error(f"Permission denied: {str(e)}")
             self.console.error("Please check file and directory permissions")
-            sys.exit(1)
+            raise typer.Exit(1)
         except KeyboardInterrupt:
             self.console.warning("\nGeneration cancelled by user")
-            sys.exit(130)  # Standard exit code for SIGINT
+            raise typer.Exit(130)  # Standard exit code for SIGINT
+        except FilterValidationError as e:
+            # Invalid filter/pattern is user input error -> exit 2, matching the
+            # other commands and the documented exit-code contract.
+            self.logger.error(f"Invalid filter in generate command: {str(e)}")
+            self.console.error(f"Failed to generate files: {str(e)}")
+            raise typer.Exit(2)
         except Exception as e:
             self.logger.error(f"Unexpected error in generate command: {str(e)}")
             self.logger.error(f"Traceback: {traceback.format_exc()}")
@@ -431,7 +435,7 @@ class GenerateCommand:
                 self.console.error(f"Error type: {type(e).__name__}")
             else:
                 self.console.error(f"Failed to generate files: {str(e)}")
-            sys.exit(1)
+            raise typer.Exit(1)
         finally:
             # Always reset output format
             if self.output_format and self.output_format != GenerateOutputFormat.TEXT:
@@ -446,4 +450,4 @@ class GenerateCommand:
                     f"Run FAILED. [yellow1]{num_errors}[/] errors occurred during generation. "
                     "Please check your templates and context files."
                 )
-            sys.exit(2)
+            raise typer.Exit(2)

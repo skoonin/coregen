@@ -1,6 +1,5 @@
 """Get command implementation."""
 
-import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -41,6 +40,11 @@ class Get(FormatValidationMixin):
     ]
     DEFAULT_FORMAT = settings.options.get.output_format
 
+    ctx: typer.Context | None
+    options: dict[str, Any] | None
+    service: GetService | None
+    global_options: GlobalOptions | None
+
     def __init__(self) -> None:
         """Initialize the command."""
         self.logger = Logger(__name__)
@@ -63,7 +67,7 @@ class Get(FormatValidationMixin):
             typer.Option(
                 "--filter",
                 "-f",
-                help="Filter expressions. Use cm/* pattern with component.* filters, c/* with context.* filters. Examples: 'component.config.priority=none', 'context.name~=aws' (regex). See docs/reference/filter-operators.md",
+                help="Filter expressions. A pattern can be filtered by its own or an ancestor entity's fields (e.g. cm/* with component.*, context.*, or workspace.*). Examples: 'component.config.priority=none', 'context.name~=aws' (regex). See docs/reference/filter-operators.md",
                 **option_params,
             ),
         ] = None,
@@ -103,7 +107,7 @@ class Get(FormatValidationMixin):
             ),
         ] = settings.options.global_defaults.include_inactive,
         type: Annotated[
-            EntityType,
+            EntityType | None,
             typer.Option(
                 "--type",
                 "-t",
@@ -197,7 +201,9 @@ class Get(FormatValidationMixin):
         """Get configuration elements by pattern or JSON input.
 
         Pattern prefixes: w/ (workspace), c/ (context), cm/ (component)
-        IMPORTANT: Pattern and filter entity types must match (cm/* with component.*, c/* with context.*).
+        A pattern can be filtered by its own or an ancestor entity's fields
+        (e.g. cm/* with component.*, context.*, or workspace.*); filtering by a
+        more specific entity than the pattern is rejected.
         All patterns MUST have prefixes. Use 'check-pattern' to test.
         """
         # Check for help flag explicitly
@@ -217,7 +223,6 @@ class Get(FormatValidationMixin):
         if (not patterns or len(patterns) == 0) and not from_json and not json_file:
             console.info(ctx.get_help())
             console.error("Either patterns or JSON input must be provided.")
-            console.info(ctx.get_help())
             raise typer.Exit()  # Clean exit without error code
 
         # Ensure ctx.obj exists and inherit from parent
@@ -362,7 +367,9 @@ class Get(FormatValidationMixin):
                         console.info(
                             "\nUse 'coregen check-pattern' to test your patterns before running."
                         )
-                        raise typer.Exit(1)
+                        # Exit 2 = input/validation error per the documented
+                        # exit-code contract (docs/developer/architecture/overview.md)
+                        raise typer.Exit(2)
 
             # Create service instance with global options
             self.service = GetService(global_options=self.global_options)
@@ -376,7 +383,7 @@ class Get(FormatValidationMixin):
                 self.logger.debug("Using flat format for table output (better display)")
 
             # Call the service method with the appropriate parameters
-            results = self.service.get_elements(
+            results: list[str] | dict[str, Any] = self.service.get_elements(
                 patterns=self.options["patterns"],
                 filters=self.options["filters"],
                 from_json=self.options["from_json"],
@@ -395,9 +402,7 @@ class Get(FormatValidationMixin):
                 name_filter_service = NameFilterService()
 
                 type_value = self.options.get("type")
-                type_str = (
-                    type_value.value if hasattr(type_value, "value") else type_value
-                )
+                type_str = getattr(type_value, "value", type_value)
 
                 results = name_filter_service.transform_for_output(
                     results,
@@ -410,6 +415,16 @@ class Get(FormatValidationMixin):
 
             self.logger.debug("Get command completed successfully")
 
+        except typer.Exit:
+            # Deliberate exits carry their own code and already printed their
+            # message; re-wrapping them produced a spurious trailer line
+            raise
+        except FileNotFoundError as e:
+            # Config/file errors are general errors (exit 1) per the documented
+            # contract; exit 2 is reserved for input/validation errors
+            console.error(f"Failed to get elements: {str(e)}")
+            self.logger.exception("Error during get command execution:")
+            raise typer.Exit(1)
         except Exception as e:
             error_msg = str(e)
             # Check if this is our validation error that's already been displayed
@@ -417,7 +432,7 @@ class Get(FormatValidationMixin):
                 console.error(f"Failed to get elements: {error_msg}")
             # Log traceback for debugging
             self.logger.exception("Error during get command execution:")
-            sys.exit(2)
+            raise typer.Exit(2)
         finally:
             # Clear the output format when done
             console.set_output_format(None)

@@ -59,8 +59,7 @@ def test_generate_multiple_filters(gen_test_env: dict[str, Any], run_cli_command
     test_context.mkdir(exist_ok=True)
 
     # Create context values
-    (test_context / "filter-test-cgvalues.yaml").write_text(
-        """context:
+    (test_context / "filter-test-cgvalues.yaml").write_text("""context:
   name: filter-test
   environment: test
   active: true
@@ -102,8 +101,7 @@ def test_generate_multiple_filters(gen_test_env: dict[str, Any], run_cli_command
       vars:
         environment: prod
         team: frontend
-"""
-    )
+""")
 
     # Don't create component directories to avoid conflicts with inline definitions
 
@@ -160,3 +158,105 @@ def test_generate_filter_with_dry_run(gen_test_env: dict[str, Any], run_cli_comm
         print(
             f"Note: Found generated directories in dry-run mode: {new_generated_dirs}"
         )
+
+
+@pytest.mark.e2e
+def test_generate_filter_does_not_leak_required_from_other_contexts(
+    gen_test_env: dict[str, Any], run_cli_command
+):
+    """A component filter must not pull required components out of contexts the
+    filter excludes. Regression: generate re-added every context's required
+    component after filtering, so a scoped filter still emitted required
+    components for unrelated contexts/workspaces.
+    """
+    contexts_dir = gen_test_env["contexts_dir"]
+
+    # context-A carries a REQUIRED component and is excluded by the filter below.
+    ctx_a = contexts_dir / "leak-ctx-a"
+    ctx_a.mkdir(parents=True, exist_ok=True)
+    (ctx_a / "leak-ctx-a-cgvalues.yaml").write_text("""context:
+  name: leak-ctx-a
+  environment: prod
+  active: true
+  component:
+    - name: alpha-required
+      config:
+        active: true
+        required: true
+        path: common-templates/metrics-server
+""")
+
+    # context-B carries the only component the filter selects.
+    ctx_b = contexts_dir / "leak-ctx-b"
+    ctx_b.mkdir(parents=True, exist_ok=True)
+    (ctx_b / "leak-ctx-b-cgvalues.yaml").write_text("""context:
+  name: leak-ctx-b
+  environment: dev
+  active: true
+  component:
+    - name: gamma-dev
+      config:
+        active: true
+        required: false
+        path: common-templates/prometheus
+""")
+
+    result = run_cli_command(
+        f"generate 'cm/*' --filter 'component.name=gamma-dev' --dry-run "
+        f"--config-file {gen_test_env['config_path']}",
+        cwd=gen_test_env["root_dir"],
+        expected_code=None,
+    )
+    output = result["stdout"] + result["stderr"]
+
+    assert "gamma-dev" in output, f"selected component missing; output:\n{output}"
+    assert "alpha-required" not in output, (
+        "required component from a filtered-OUT context leaked into generation; "
+        f"output:\n{output}"
+    )
+
+
+@pytest.mark.e2e
+def test_generate_rejects_pattern_filter_mismatch(
+    gen_test_env: dict[str, Any], run_cli_command
+):
+    """Filtering up the hierarchy is rejected with a clear error.
+
+    A w/* (workspace) pattern with a component.* filter targets a more specific
+    entity than the pattern, so generate errors with exit code 2 (input error),
+    matching get/check-pattern, rather than silently returning nothing. (A cm/*
+    pattern filtered by context.*/workspace.* is valid cross-entity scoping and
+    is covered elsewhere.)
+    """
+    result = run_cli_command(
+        f"generate 'w/*' --filter 'component.config.active=true' "
+        f"--config-file {gen_test_env['config_path']}",
+        cwd=gen_test_env["root_dir"],
+        expected_code=2,
+    )
+    assert result["success"], f"expected exit 2 for mismatch; got: {result}"
+    combined = (result["stdout"] + result["stderr"]).lower()
+    assert (
+        "mismatch" in combined
+    ), f"expected a pattern/filter mismatch message; got: {combined}"
+
+
+@pytest.mark.e2e
+def test_generate_allows_component_scoped_by_parent_filters(
+    gen_test_env: dict[str, Any], run_cli_command
+):
+    """A cm/ component pattern scoped by context.*/workspace.* filters is valid
+    cross-entity scoping -- this is the exact form coregen emits in its matrix
+    `command` field and the deploy/validate workflows feed back into generate.
+    """
+    result = run_cli_command(
+        f"generate 'cm/prometheus-name-test' "
+        f"--filter 'context.name=context-dev-test' --dry-run "
+        f"--config-file {gen_test_env['config_path']}",
+        cwd=gen_test_env["root_dir"],
+        expected_code=None,
+    )
+    combined = (result["stdout"] + result["stderr"]).lower()
+    assert (
+        "mismatch" not in combined
+    ), f"cross-entity scoping wrongly rejected: {combined}"

@@ -130,7 +130,7 @@ class ContextSettings(BaseModel):
     """
 
     environment: Annotated[
-        str,
+        str | None,
         Field(
             None,
             description="Default type name for environments in context configuration",

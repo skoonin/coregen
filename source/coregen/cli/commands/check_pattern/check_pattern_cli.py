@@ -1,6 +1,5 @@
 """Test pattern command implementation."""
 
-import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -57,7 +56,7 @@ class CheckPattern(FormatValidationMixin):
             typer.Option(
                 "--filter",
                 "-f",
-                help="Filter expressions (e.g. 'component.active=true', 'context.name~=aws' uses regex)",
+                help="Filter expressions (e.g. 'component.active=true', 'context.name~=aws' uses regex). A pattern can be filtered by its own or an ancestor entity's fields (cm/* with component.*/context.*/workspace.*); filtering by a more specific entity is rejected.",
                 **option_params,
             ),
         ] = None,
@@ -484,4 +483,4 @@ class CheckPattern(FormatValidationMixin):
             console.error(f"Failed to test patterns: {str(e)}")
             # Optionally re-raise or log traceback for debugging
             self.logger.exception("Error during check-pattern execution:")
-            sys.exit(2)
+            raise typer.Exit(2)

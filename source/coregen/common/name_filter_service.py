@@ -150,32 +150,6 @@ class NameFilterService:
             # Already just the component name
             return component_key
 
-    def merge_component_names(self, *data_sets: dict[str, Any]) -> list[str]:
-        """Merge and deduplicate component names from multiple data sets.
-
-        This is useful when combining results from multiple sources.
-
-        Args:
-            *data_sets: Variable number of data dictionaries
-
-        Returns:
-            Sorted list of unique component names
-        """
-        all_component_names = set()
-
-        for data in data_sets:
-            if "components" in data and data["components"]:
-                if isinstance(data["components"], list):
-                    # Already a list of names
-                    all_component_names.update(data["components"])
-                elif isinstance(data["components"], dict):
-                    # Extract names from dict keys
-                    for component_key in data["components"].keys():
-                        component_name = self._extract_component_name(component_key)
-                        all_component_names.add(component_name)
-
-        return sorted(list(all_component_names))
-
     def transform_for_output(
         self,
         data: dict[str, Any],
@@ -228,7 +202,7 @@ class NameFilterService:
         # If no specific type identified, find the one with most items
         if not entity_type or entity_type == "all":
             max_count = 0
-            selected = data  # Default to returning the full dict
+            selected: Any = data  # Default to returning the full dict
 
             for entity_key in ["workspaces", "contexts", "components"]:
                 if entity_key in data and len(data[entity_key]) > max_count:

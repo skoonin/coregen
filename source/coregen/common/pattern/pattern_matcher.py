@@ -22,7 +22,7 @@ class PatternMatcherFactory:
         self,
         config_access: ConfigAccess,
         root_path: Path,
-        console: Console | None = None,
+        console: Console | type[Console] | None = None,
         logger: Logger | None = None,
     ):
         """Initialize the factory.
@@ -84,13 +84,19 @@ class PatternMatcherFactory:
                 return ComponentMatcher(logical_spec, self.config_access)
 
             else:
-                error_msg = f"Unknown logical prefix type: {logical_spec.prefix_type}"
+                # Defensive guard: statically unreachable for the LogicalPrefixType
+                # enum, but exercised at runtime via mocked/out-of-enum specs.
+                error_msg = (  # type: ignore[unreachable]
+                    f"Unknown logical prefix type: {logical_spec.prefix_type}"
+                )
                 if self.logger:
                     self.logger.error(error_msg)
                 raise ValueError(error_msg)
 
         else:
-            error_msg = f"Unknown pattern type: {spec.pattern_type}"
+            # Defensive guard: statically unreachable for the single-member
+            # PatternType enum, but exercised at runtime via mocked specs.
+            error_msg = f"Unknown pattern type: {spec.pattern_type}"  # type: ignore[unreachable]
             if self.logger:
                 self.logger.error(error_msg)
             raise ValueError(error_msg)

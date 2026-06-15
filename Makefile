@@ -38,6 +38,7 @@ include makefiles/clean.mk
 include makefiles/docker-dev.mk
 include makefiles/install.mk
 include makefiles/setup.mk
+include makefiles/quality.mk
 include makefiles/testing.mk
 
 #-----------------------------------------------------

@@ -82,7 +82,7 @@ def test_config_generate_init_subprocess(temp_test_dir):
         assert config_file.exists(), "Config file was not created"
 
         # Now test the init command
-        init_result = subprocess.run(
+        subprocess.run(
             [sys.executable, "-m", "coregen", "config", "init"],
             capture_output=True,
             text=True,
@@ -177,13 +177,11 @@ def test_config_view_basic(temp_test_dir):
     # Create config file
     config_file = config_test_dir / ".cgconfig.yaml"
     with open(config_file, "w") as f:
-        f.write(
-            """# Test config
+        f.write("""# Test config
 workspaces:
   - name: test-workspace
     context_type: test
-"""
-        )
+""")
 
     # Get project root directory
     Path(__file__).parent.parent.parent
@@ -232,13 +230,11 @@ def test_config_view_with_formats(temp_test_dir):
     # Create config file
     config_file = config_test_dir / ".cgconfig.yaml"
     with open(config_file, "w") as f:
-        f.write(
-            """# Test config
+        f.write("""# Test config
 workspaces:
   - name: test-workspace
     context_type: test
-"""
-        )
+""")
 
     # Run in the test directory
     try:

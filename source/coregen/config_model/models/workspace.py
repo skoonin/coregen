@@ -91,7 +91,7 @@ class WorkspaceConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_extra_fields(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def validate_extra_fields(cls, data: Any) -> Any:
         """Validate that extra fields have allowed types.
 
         Args:
@@ -103,7 +103,7 @@ class WorkspaceConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        # Define fields that are part of the model  # type: ignore[unreachable]
+        # Define fields that are part of the model
         model_fields = {
             "name",
             "workspace_dir",
@@ -159,7 +159,3 @@ class WorkspaceConfig(BaseModel):
             raise ValueError("Workspace name cannot be empty")
 
         return self
-
-    def resolve_context_type(self) -> str:
-        """Resolve the context type, using default if not specified."""
-        return self.context_type or settings.workspace.context_type

@@ -133,6 +133,16 @@ coregen get "c/*" \
 
 All filters must match (AND logic).
 
+### Invalid Filters
+
+Malformed filters fail fast with a clear error and a non-zero exit, rather than silently matching nothing:
+
+- An invalid regex pattern (e.g. `name~=[`) is rejected when the filter is parsed.
+- A filter with no property before the operator (e.g. `=value`) is rejected.
+- A filter targeting a more specific entity than the pattern (see below) is rejected.
+
+Note: exact match (`=`/`!=`) compares against each field's actual type, so string fields whose values look numeric or boolean (account IDs, `"false"`) match as written; use the regex operator (`~=`) for case-insensitive or partial matches.
+
 ## Examples by Command
 
 ### Get Command
@@ -176,7 +186,7 @@ coregen check-pattern "c/*-prod" --filter "context.environment=production" --ana
 ## Pattern Prefixes and Filter Compatibility
 
 [!IMPORTANT]
-> Filters must match the entity type selected by your pattern prefix. Mismatches will result in zero matches.
+> A pattern can be filtered by its own entity's fields or by an **ancestor** entity's fields (the hierarchy is `workspace > context > component`). Filtering by a **more specific** (descendant) entity than the pattern is rejected with a clear error.
 
 ### Understanding Pattern Prefixes
 
@@ -188,46 +198,48 @@ Patterns use prefixes to specify which entity type to select:
 | `cm/*` or `component/*` | Components | Selects components only | `coregen get "cm/*"` |
 | `w/*` or `workspace/*` | Workspaces | Selects workspaces (and their hierarchy) | `coregen get "w/*"` |
 
-### Filter Entity Prefixes Must Match Pattern Type
+### Filters May Target the Pattern's Entity or an Ancestor
 
-When using entity-scoped filters (e.g., `component.config.priority`), the filter entity type must match your pattern:
+A `cm/*` (component) pattern can be scoped by `component.*`, `context.*`, or `workspace.*` filters. A `c/*` (context) pattern can be scoped by `context.*` or `workspace.*`. For example:
 
 ```bash
-# CORRECT - Pattern and filter both target components
+# Component pattern, filtered by its own fields
 coregen get "cm/*" --filter "component.config.priority=none"
 
-# WRONG - Pattern targets contexts, filter targets components
-coregen get "c/*" --filter "component.config.priority=none"
-# This returns ZERO results because contexts don't have component.config fields
+# Component pattern scoped by a parent entity (cross-entity scoping)
+coregen get "cm/*" --filter "context.environment=production"
+coregen generate "cm/vpc" --filter "workspace.name=aws" --filter "context.name=aws-cluster-dev"
 
-# CORRECT - Pattern targets contexts, filter targets contexts
+# Context pattern, filtered by its own fields
 coregen get "c/*" --filter "context.active=true"
 ```
 
-### Common Pattern/Filter Mismatches
+### Filtering Up the Hierarchy Is Rejected
 
-#### Mistake: Using `c/*` with `component.*` filters
+A pattern cannot be filtered by a more specific entity's fields. This errors with a clear message instead of silently returning nothing.
+
+#### Rejected: Using `c/*` with `component.*` filters
 
 ```bash
-# WRONG - c/* selects contexts, not components
+# ERROR - c/* selects contexts; component.* is more specific
 coregen get "c/*" --filter "component.config.active=true"
-# Result: Zero matches (contexts don't have component.config fields)
+# Error: Pattern/filter mismatch (use cm/* to filter components)
 
 # CORRECT - Use cm/* to select components
 coregen get "cm/*" --filter "component.config.active=true"
 # Result: Returns matching components
 ```
 
-#### Mistake: Using `cm/*` with `context.*` filters
+#### Valid: Using `cm/*` with `context.*` or `workspace.*` filters
+
+This is cross-entity scoping (filtering components by a parent entity), not a mismatch — it is supported and is the form coregen emits in its `matrix` output.
 
 ```bash
-# WRONG - cm/* selects components, not contexts
+# Components in production contexts
 coregen get "cm/*" --filter "context.environment=production"
-# Result: Zero matches (components don't have context.environment fields)
 
-# CORRECT - Use c/* to select contexts
-coregen get "c/*" --filter "context.environment=production"
-# Result: Returns matching contexts and their components
+# A single component pinned to its workspace and context
+coregen generate "cm/vpc" --filter "workspace.name=aws" --filter "context.name=aws-cluster-dev"
 ```
 
 ### When to Use Unscoped Filters

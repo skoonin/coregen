@@ -148,7 +148,7 @@ def test_get_with_parent_filter(cli_runner, cli_app):
     with mock_cli_service(
         "coregen.cli.commands.get.get_cli.GetService", "get_elements", result_data
     ) as (mock_class, mock_instance):
-        result = invoke_cli_command(
+        invoke_cli_command(
             cli_runner, cli_app, ["get", "cm/*", "--filter", "context=test-context"]
         )
         # Verify filters were passed to service

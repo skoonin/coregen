@@ -44,13 +44,11 @@ def advanced_template_env(
     test_context.mkdir(exist_ok=True)
 
     # Create context values
-    (test_context / "advanced-test-cgvalues.yaml").write_text(
-        """context:
+    (test_context / "advanced-test-cgvalues.yaml").write_text("""context:
   name: advanced-test
   environment: test
   active: true
-"""
-    )
+""")
 
     # Copy config
     config_path = test_dir / ".cgconfig.yaml"
@@ -73,8 +71,7 @@ def test_template_inheritance(advanced_template_env: dict[str, Any], run_cli_com
 
     # Create base template
     base_template = advanced_template_env["advanced_dir"] / "base.yaml.j2"
-    base_template.write_text(
-        """# Base Template
+    base_template.write_text("""# Base Template
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -88,13 +85,11 @@ data:
   # Default configuration
   app.name: {{ component.name }}
   {% endblock %}
-"""
-    )
+""")
 
     # Create child template that extends base
     child_template = advanced_template_env["advanced_dir"] / "extended.yaml.j2"
-    child_template.write_text(
-        """{% extends "base.yaml.j2" %}
+    child_template.write_text("""{% extends "base.yaml.j2" %}
 
 {% block extra_labels %}
     environment: {{ environment | default('dev') }}
@@ -110,14 +105,12 @@ data:
     - {{ feature }}
     {% endfor %}
 {% endblock %}
-"""
-    )
+""")
 
     # Create component using advanced template
     comp_dir = advanced_template_env["test_context"] / "inherited-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "inherited-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "inherited-component.cgvalues.yaml").write_text("""component:
   name: inherited-component
   config:
     active: true
@@ -133,8 +126,7 @@ data:
       - metrics
       - tracing
     template: advanced
-"""
-    )
+""")
 
     # Run generate command
     result = run_cli_command(
@@ -176,27 +168,22 @@ def test_template_includes(advanced_template_env: dict[str, Any], run_cli_comman
     partials_dir.mkdir(exist_ok=True)
 
     labels_partial = partials_dir / "labels.j2"
-    labels_partial.write_text(
-        """app: {{ component.name }}
+    labels_partial.write_text("""app: {{ component.name }}
 version: {{ version | default('1.0.0') }}
 managed-by: coregen
-team: {{ team | default('platform') }}"""
-    )
+team: {{ team | default('platform') }}""")
 
     annotations_partial = partials_dir / "annotations.j2"
-    annotations_partial.write_text(
-        """generated-by: "coregen"
+    annotations_partial.write_text("""generated-by: "coregen"
 generated-at: "{{ timestamp | default('unknown') }}"
 template-version: "1.0"
 {% if description %}
 description: "{{ description }}"
-{% endif %}"""
-    )
+{% endif %}""")
 
     # Create main template with includes
     main_template = advanced_template_env["advanced_dir"] / "with-includes.yaml.j2"
-    main_template.write_text(
-        """apiVersion: apps/v1
+    main_template.write_text("""apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ component.name }}
@@ -220,14 +207,12 @@ spec:
         image: {{ image | default('nginx:latest') }}
         ports:
         - containerPort: {{ port | default(8080) }}
-"""
-    )
+""")
 
     # Create component
     comp_dir = advanced_template_env["test_context"] / "include-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "include-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "include-component.cgvalues.yaml").write_text("""component:
   name: include-component
   config:
     active: true
@@ -243,8 +228,7 @@ spec:
     image: myapp:v3
     port: 9090
     template: advanced
-"""
-    )
+""")
 
     # Run generate
     result = run_cli_command(
@@ -319,8 +303,7 @@ env:
 
     # Create template using macros
     macro_template = advanced_template_env["advanced_dir"] / "with-macros.yaml.j2"
-    macro_template.write_text(
-        """{% import 'macros.j2' as macros %}
+    macro_template.write_text("""{% import 'macros.j2' as macros %}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -356,14 +339,12 @@ spec:
         ) | indent(8) }}
         {% endfor %}
       {% endif %}
-"""
-    )
+""")
 
     # Create component with complex data
     comp_dir = advanced_template_env["test_context"] / "macro-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "macro-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "macro-component.cgvalues.yaml").write_text("""component:
   name: macro-component
   config:
     active: true
@@ -394,8 +375,7 @@ spec:
         path: /var/app/data
         readOnly: false
     template: advanced
-"""
-    )
+""")
 
     # Run generate
     result = run_cli_command(
@@ -434,8 +414,7 @@ def test_custom_filters(advanced_template_env: dict[str, Any], run_cli_command):
 
     # Create template with built-in filters (custom filters would need app support)
     filter_template = advanced_template_env["advanced_dir"] / "with-filters.yaml.j2"
-    filter_template.write_text(
-        """apiVersion: v1
+    filter_template.write_text("""apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ component.name }}-config
@@ -472,14 +451,12 @@ data:
 
   # Conditional filters
   environment_display: "{{ environment | default('dev') | upper if is_production else environment | default('dev') | lower }}"
-"""
-    )
+""")
 
     # Create component with various data types
     comp_dir = advanced_template_env["test_context"] / "filter-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "filter-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "filter-component.cgvalues.yaml").write_text("""component:
   name: filter-component
   config:
     active: true
@@ -502,8 +479,7 @@ data:
     environment: staging
     is_production: false
     template: advanced
-"""
-    )
+""")
 
     # Run generate
     result = run_cli_command(
@@ -544,8 +520,7 @@ def test_complex_variable_scoping(
 
     # Create template with complex scoping
     scope_template = advanced_template_env["advanced_dir"] / "scoping.yaml.j2"
-    scope_template.write_text(
-        """{% set global_var = 'global_value' %}
+    scope_template.write_text("""{% set global_var = 'global_value' %}
 {% set replicas = replicas | default(1) %}
 
 apiVersion: v1
@@ -599,14 +574,12 @@ data:
   counter_{{ item }}: {{ ns.counter }}
   {% endfor %}
   final_counter: {{ ns.counter }}
-"""
-    )
+""")
 
     # Create component
     comp_dir = advanced_template_env["test_context"] / "scope-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "scope-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "scope-component.cgvalues.yaml").write_text("""component:
   name: scope-component
   config:
     active: true
@@ -620,8 +593,7 @@ data:
       - development
       - production
     template: advanced
-"""
-    )
+""")
 
     # Run generate
     result = run_cli_command(
@@ -663,22 +635,19 @@ def test_template_error_handling(
 
     # Create template with missing include
     error_template = advanced_template_env["advanced_dir"] / "missing-include.yaml.j2"
-    error_template.write_text(
-        """apiVersion: v1
+    error_template.write_text("""apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ component.name }}
 data:
   # This include doesn't exist
   {% include 'non-existent-file.j2' %}
-"""
-    )
+""")
 
     # Create component
     comp_dir = advanced_template_env["test_context"] / "error-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "error-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "error-component.cgvalues.yaml").write_text("""component:
   name: error-component
   config:
     active: true
@@ -687,8 +656,7 @@ data:
   vars:
     component_name: error-component
     template: advanced
-"""
-    )
+""")
 
     # Run generate - should fail
     result = run_cli_command(
@@ -707,16 +675,14 @@ data:
 
     # Test undefined variable error
     undef_template = advanced_template_env["advanced_dir"] / "undefined-var.yaml.j2"
-    undef_template.write_text(
-        """apiVersion: v1
+    undef_template.write_text("""apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ component.name }}
 data:
   # This variable is not defined
   undefined_value: "{{ undefined_variable }}"
-"""
-    )
+""")
 
     # Run generate with undefined variable
     result = run_cli_command(
@@ -739,8 +705,7 @@ def test_template_whitespace_control(
 
     # Create template with whitespace control
     ws_template = advanced_template_env["advanced_dir"] / "whitespace.yaml.j2"
-    ws_template.write_text(
-        """apiVersion: v1
+    ws_template.write_text("""apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ component.name }}
@@ -772,14 +737,12 @@ data:
 {%- for line in config_lines %}
 {{ line | indent(4, first=True) }}
 {%- endfor %}
-"""
-    )
+""")
 
     # Create component
     comp_dir = advanced_template_env["test_context"] / "whitespace-component"
     comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "whitespace-component.cgvalues.yaml").write_text(
-        """component:
+    (comp_dir / "whitespace-component.cgvalues.yaml").write_text("""component:
   name: whitespace-component
   config:
     active: true
@@ -802,8 +765,7 @@ data:
       - "server.host=0.0.0.0"
       - "log.level=INFO"
     template: advanced
-"""
-    )
+""")
 
     # Run generate
     result = run_cli_command(

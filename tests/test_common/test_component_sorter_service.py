@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 
-from coregen.common.component_sorter_config import ComponentSorterConfig
 from coregen.common.component_sorter_service import (
     ComponentSorterService,
     ComponentValidationError,
@@ -38,7 +37,7 @@ class TestComponentSorterService:
             {"name": "comp2", "priority": 2},
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
 
         assert [c["name"] for c in result] == ["comp1", "comp2", "comp3"]
 
@@ -51,7 +50,7 @@ class TestComponentSorterService:
             {"name": "comp_none2", "priority": None, "workspace": "", "context": ""},
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
 
         names = [c["name"] for c in result]
         # Prioritized first (by priority)
@@ -72,7 +71,7 @@ class TestComponentSorterService:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         assert "Duplicate priority values" in error_msg
@@ -109,7 +108,7 @@ class TestComponentSorterService:
             },
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
 
         names = [c["name"] for c in result]
         # workspace_a comes before workspace_b
@@ -124,7 +123,7 @@ class TestComponentSorterService:
             {"name": "comp4", "workspace": "ws1", "context": "ctx_a", "priority": 2},
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
 
         names = [c["name"] for c in result]
         # ws1/ctx_a, then ws1/ctx_b, then ws2/ctx_a
@@ -149,112 +148,29 @@ class TestComponentSorterService:
         ]
 
         # Should not raise error because dependency is in different context
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
 
         names = [c["name"] for c in result]
         # Components sorted by context then priority
         assert names == ["app", "lib"]
 
-    # ---- Configuration Tests ----
-
-    def test_custom_none_priority_value(self, sorter):
-        """Test custom value for None priority affects sort order."""
-        sorter = ComponentSorterService(none_priority_value=500)
-
+    def test_none_priority_sorts_after_any_numeric_priority(self, sorter):
+        """Null priority sorts last even against very large numeric priorities."""
         components = [
-            {"name": "app1", "priority": 1, "workspace": "", "context": ""},
             {"name": "lib_none", "priority": None, "workspace": "", "context": ""},
+            {"name": "app_999", "priority": 999, "workspace": "", "context": ""},
+            {"name": "app_1", "priority": 1, "workspace": "", "context": ""},
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
 
-        # app1 comes first (priority 1), lib_none last (treated as 500)
-        assert result[0]["name"] == "app1"
-        assert result[1]["name"] == "lib_none"
-
-    def test_configuration_via_config_object(self, sorter):
-        """Test passing ComponentSorterConfig object."""
-        config = ComponentSorterConfig.create(
-            none_priority_value=500,
-            cycle_break_strategy="stable",
-        )
-        sorter = ComponentSorterService(config=config)
-
-        assert sorter.none_priority_value == 500
-        assert sorter.cycle_break_strategy == "stable"
-
-    # ---- sort_changes Method Tests ----
-
-    def test_sort_changes_basic(self, sorter):
-        """Test sort_changes method with change objects."""
-
-        class Change:
-            def __init__(self, name, workspace="", context="", priority=None):
-                self.component_name = name
-                self.workspace_name = workspace
-                self.context_name = context
-                self.component_priority = priority
-
-        changes = [
-            Change("change3", workspace="", context="", priority=3),
-            Change("change1", workspace="", context="", priority=1),
-            Change("change2", workspace="", context="", priority=2),
-        ]
-
-        result = sorter.sort_changes(changes)
-
-        assert [c.component_name for c in result] == ["change1", "change2", "change3"]
-
-    # ---- sort_table_rows Method Tests ----
-
-    def test_sort_table_rows_basic(self, sorter):
-        """Test sort_table_rows method with dictionary rows."""
-        rows = [
-            {"Component": "comp3", "Priority": "3", "Workspace": "", "Context": ""},
-            {"Component": "comp1", "Priority": "1", "Workspace": "", "Context": ""},
-            {"Component": "comp2", "Priority": "2", "Workspace": "", "Context": ""},
-        ]
-
-        result = sorter.sort_table_rows(rows)
-
-        assert [r["Component"] for r in result] == ["comp1", "comp2", "comp3"]
-
-    def test_sort_table_rows_with_workspaces(self, sorter):
-        """Test sort_table_rows respects workspace grouping."""
-        rows = [
-            {"Component": "b1", "Workspace": "ws_b", "Context": "", "Priority": "1"},
-            {"Component": "a1", "Workspace": "ws_a", "Context": "", "Priority": "1"},
-            {"Component": "a2", "Workspace": "ws_a", "Context": "", "Priority": "2"},
-        ]
-
-        result = sorter.sort_table_rows(rows)
-
-        assert [r["Component"] for r in result] == ["a1", "a2", "b1"]
-
-    def test_sort_table_rows_handles_invalid_priority(self, sorter):
-        """Test sort_table_rows handles non-numeric priority values."""
-        rows = [
-            {"Component": "comp1", "Priority": "high", "Workspace": "", "Context": ""},
-            {"Component": "comp2", "Priority": "1", "Workspace": "", "Context": ""},
-            {"Component": "comp3", "Priority": "", "Workspace": "", "Context": ""},
-            {"Component": "comp4", "Priority": None, "Workspace": "", "Context": ""},
-        ]
-
-        result = sorter.sort_table_rows(rows)
-        names = [r["Component"] for r in result]
-
-        # comp2 with valid priority comes first
-        assert names[0] == "comp2"
-        # Others treated as non-priority (alphabetical)
-        assert set(names[1:]) == {"comp1", "comp3", "comp4"}
+        assert [c["name"] for c in result] == ["app_1", "app_999", "lib_none"]
 
     # ---- Edge Cases and Error Handling ----
 
     def test_empty_input(self, sorter):
         """Test handling of empty input."""
-        assert sorter.sort_component_dicts([]) == []
-        assert sorter.sort_changes([]) == []
-        assert sorter.sort_table_rows([]) == []
+        assert sorter.sort_entities([], "component") == []
 
     def test_missing_dependencies(self, sorter):
         """Test handling of dependencies that don't exist."""
@@ -269,7 +185,7 @@ class TestComponentSorterService:
         ]
 
         # Should not raise, missing dependency is ignored
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
         assert len(result) == 1
         assert result[0]["name"] == "app"
 
@@ -289,7 +205,7 @@ class TestComponentSorterService:
             )
 
         # Should complete without issues
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
         assert len(result) == 100
 
         # Verify workspace grouping is maintained
@@ -325,7 +241,7 @@ class TestComponentSorterValidation:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         assert "Duplicate priority values" in error_msg
@@ -358,7 +274,7 @@ class TestComponentSorterValidation:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         assert "Priority conflict" in error_msg
@@ -392,7 +308,7 @@ class TestComponentSorterValidation:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         assert "Circular dependencies" in error_msg
@@ -420,7 +336,7 @@ class TestComponentSorterValidation:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         assert "Invalid priority configuration" in error_msg
@@ -448,7 +364,7 @@ class TestComponentSorterValidation:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         assert "Invalid priority configuration" in error_msg
@@ -491,7 +407,7 @@ class TestComponentSorterValidation:
         ]
 
         with pytest.raises(ComponentValidationError) as exc_info:
-            sorter.sort_component_dicts(components)
+            sorter.sort_entities(components, "component")
 
         error_msg = str(exc_info.value)
         # Should contain BOTH errors
@@ -508,7 +424,7 @@ class TestComponentSorterValidation:
             {"name": "comp2", "workspace": "", "context": "", "priority": 2},
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
         names = [c["name"] for c in result]
 
         # Should be ordered: 0 → 2 → 5 → null
@@ -607,7 +523,7 @@ class TestComponentSorterIntegration:
             },
         ]
 
-        result = sorter.sort_component_dicts(components)
+        result = sorter.sort_entities(components, "component")
         names = [c["name"] for c in result]
 
         # Components ordered by context (alphabetically), then priority

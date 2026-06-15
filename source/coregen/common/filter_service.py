@@ -8,9 +8,17 @@ all services that need to filter workspaces, contexts, and components.
 import re
 from typing import Any
 
-from coregen.common.field_discovery import FieldDiscovery
 from coregen.common.logger import Logger
 from coregen.config_model.access import ConfigAccess
+
+
+class FilterValidationError(ValueError):
+    """Raised when a filter expression or pattern/filter combination is invalid.
+
+    Subclasses ``ValueError`` so existing handlers keep catching it, while
+    letting the CLI distinguish user-input filter errors (exit 2) from runtime
+    errors (exit 1).
+    """
 
 
 class FilterService:
@@ -27,6 +35,15 @@ class FilterService:
         logger: Logger instance for this service
     """
 
+    # Bare component config field names mapped to their config.<field> path, so
+    # "component.required" resolves the same as "component.config.required".
+    _COMPONENT_FIELD_ALIASES = {
+        "active": "config.active",
+        "for_commit": "config.for_commit",
+        "required": "config.required",
+        "priority": "config.priority",
+    }
+
     def __init__(self, config_access: ConfigAccess, logger: Logger | None = None):
         """Initialize the filter service.
 
@@ -36,7 +53,6 @@ class FilterService:
         """
         self.config_access = config_access
         self.logger = logger or Logger(__name__)
-        self.field_discovery = FieldDiscovery(config_access, self.logger)
 
     def parse_filter_expression(self, filter_string: str) -> dict[str, Any]:
         """Parse a filter expression into a structured filter specification.
@@ -50,7 +66,7 @@ class FilterService:
         self.logger.debug(f"Parsing filter expression: {filter_string}")
 
         # Initialize filter specification
-        filter_spec = {
+        filter_spec: dict[str, Any] = {
             "entity_type": None,
             "property": None,
             "operator": "=",
@@ -64,155 +80,53 @@ class FilterService:
             filter_spec["entity_type"] = entity_type
             filter_string = rest
 
-        # Check for operator (check longer operators first for proper precedence)
-        if "!=" in filter_string:
-            property_name, value = filter_string.split("!=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "!="
-            filter_spec["value"] = value.strip()
-        elif "~=" in filter_string:
-            property_name, value = filter_string.split("~=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "~="
-            filter_spec["value"] = value.strip()
-        elif "=~" in filter_string:
-            property_name, value = filter_string.split("=~", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "=~"
-            filter_spec["value"] = value.strip()
-        elif ">=" in filter_string:
-            property_name, value = filter_string.split(">=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = ">="
-            filter_spec["value"] = value.strip()
-        elif "<=" in filter_string:
-            property_name, value = filter_string.split("<=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "<="
-            filter_spec["value"] = value.strip()
-        elif ">" in filter_string:
-            property_name, value = filter_string.split(">", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = ">"
-            filter_spec["value"] = value.strip()
-        elif "<" in filter_string:
-            property_name, value = filter_string.split("<", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "<"
-            filter_spec["value"] = value.strip()
-        elif "=" in filter_string:
-            property_name, value = filter_string.split("=", 1)
-            filter_spec["property"] = property_name.strip()
-            filter_spec["operator"] = "="
-            filter_spec["value"] = value.strip()
+        # Detect the operator, longest first so e.g. ">=" wins over ">" and
+        # "!=" over "=".
+        for operator in ("!=", "~=", "=~", ">=", "<=", ">", "<", "="):
+            if operator in filter_string:
+                property_name, value = filter_string.split(operator, 1)
+                filter_spec["property"] = property_name.strip()
+                filter_spec["operator"] = operator
+                filter_spec["value"] = value.strip()
+                break
         else:
-            # Assume property=true if no operator
+            # No operator: treat as an existence check (property=true).
             filter_spec["property"] = filter_string.strip()
             filter_spec["operator"] = "="
             filter_spec["value"] = True
 
-        # Convert value to appropriate type
-        if isinstance(filter_spec["value"], str):
-            # For regex operators, keep value as string (it's the pattern)
-            if filter_spec["operator"] not in ("~=", "=~"):
-                # For non-regex operators only: Convert "none" or "null" to Python None for any field (case-insensitive)
-                # Note: Regex operators preserve these as literal strings for pattern matching
-                if filter_spec["value"].lower() in ("none", "null"):
-                    filter_spec["value"] = None
-                # Convert to boolean
-                elif filter_spec["value"].lower() == "true":
-                    filter_spec["value"] = True
-                elif filter_spec["value"].lower() == "false":
-                    filter_spec["value"] = False
-                # Convert to integer
-                elif filter_spec["value"].isdigit():
-                    filter_spec["value"] = int(filter_spec["value"])
-                # Convert to float
-                elif (
-                    filter_spec["value"].replace(".", "", 1).isdigit()
-                    and filter_spec["value"].count(".") == 1
-                ):
-                    filter_spec["value"] = float(filter_spec["value"])
+        # Reject structurally malformed expressions at the boundary.
+        if not filter_spec["property"]:
+            raise FilterValidationError(
+                f"Invalid filter expression: missing property name before "
+                f"'{filter_spec['operator']}'."
+            )
+
+        # Surface an invalid regex at parse time instead of deferring the failure
+        # to apply time where it is harder to attribute.
+        if filter_spec["operator"] in ("~=", "=~") and isinstance(
+            filter_spec["value"], str
+        ):
+            try:
+                re.compile(filter_spec["value"])
+            except re.error as e:
+                raise FilterValidationError(
+                    f"Invalid regex pattern '{filter_spec['value']}': {e}"
+                ) from e
+
+        # Convert only none/null to Python None (case-insensitive), for non-regex
+        # operators. Int/bool/float coercion is intentionally NOT done here:
+        # _compare_values coerces the value against each field's actual type,
+        # which also lets custom string fields whose values look numeric or
+        # boolean match. Regex operators keep none/null as literal patterns.
+        if (
+            isinstance(filter_spec["value"], str)
+            and filter_spec["operator"] not in ("~=", "=~")
+            and filter_spec["value"].lower() in ("none", "null")
+        ):
+            filter_spec["value"] = None
 
         return filter_spec
-
-    def validate_filter_fields(
-        self, filters: list[dict[str, Any]], entity_type: str
-    ) -> list[str]:
-        """Validate that all filter fields exist for the given entity type.
-
-        Args:
-            filters: List of filter specifications to validate
-            entity_type: Type of entity to validate against ("workspace", "context", "component")
-
-        Returns:
-            List of error messages for invalid fields (empty if all valid)
-        """
-        errors = []
-
-        for filter_spec in filters:
-            field_name = filter_spec.get("property")
-            if not field_name:
-                continue
-
-            # Check if field exists
-            if not self.field_discovery.validate_field_exists(field_name, entity_type):
-                # Get suggestions for similar field names
-                suggestions = self.field_discovery.get_field_suggestions(
-                    field_name, entity_type
-                )
-
-                if suggestions:
-                    error_msg = f"Unknown field '{field_name}' for {entity_type}. Did you mean: {', '.join(suggestions)}?"
-                else:
-                    error_msg = f"Unknown field '{field_name}' for {entity_type}"
-
-                errors.append(error_msg)
-
-        return errors
-
-    def get_available_fields(self, entity_type: str) -> list[str]:
-        """Get list of available field names for the given entity type.
-
-        Args:
-            entity_type: Type of entity ("workspace", "context", "component")
-
-        Returns:
-            Sorted list of available field names
-        """
-        fields = self.field_discovery.discover_fields(entity_type)
-        return sorted(fields.keys())
-
-    def apply_filters(
-        self, elements: dict[str, Any], filters: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        """Apply filters to configuration elements.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            filters: List of filter specifications
-
-        Returns:
-            Filtered dictionary of configuration elements
-        """
-        self.logger.debug(f"Applying filters: {filters}")
-
-        # If no filters, return elements as is
-        if not filters:
-            return elements
-
-        # Initialize result with original elements
-        result = {
-            "workspaces": elements.get("workspaces", {}).copy(),
-            "contexts": elements.get("contexts", {}).copy(),
-            "components": elements.get("components", {}).copy(),
-        }
-
-        # Apply each filter
-        for filter_spec in filters:
-            self._apply_filter(result, filter_spec)
-
-        return result
 
     def apply_filters_complete(
         self,
@@ -222,8 +136,7 @@ class FilterService:
         """
         Apply filters to complete model where all relationships are available.
 
-        This is the new method for the filter-first architecture. Unlike apply_filters(),
-        this method works with a complete model where all parent-child relationships
+        This works with a complete model where all parent-child relationships
         are intact, allowing filters like "context.environment" to work even when
         selecting components.
 
@@ -304,25 +217,14 @@ class FilterService:
             self._filter_workspaces_complete(
                 complete_model, property_name, operator, value
             )
-        self.logger.debug(
-            f" Applied filter to workspaces: {property_name} {operator} {value}"
-        )
-
         if entity_type == "context" or entity_type is None:
             self._filter_contexts_complete(
                 complete_model, property_name, operator, value
             )
-        self.logger.debug(
-            f" Applied filter to contexts: {property_name} {operator} {value}"
-        )
-
         if entity_type == "component" or entity_type is None:
             self._filter_components_complete(
                 complete_model, property_name, operator, value
             )
-        self.logger.debug(
-            f" Applied filter to components: {property_name} {operator} {value}"
-        )
 
     def _apply_cross_entity_filter_complete(
         self,
@@ -401,12 +303,9 @@ class FilterService:
             complete_model["contexts"] = filtered_contexts
 
             # Filter components belonging to filtered contexts
-            filtered_components = {}
-            for comp_key, component in complete_model["components"].items():
-                context_name = comp_key.split("/")[0]
-                if context_name in filtered_contexts:
-                    filtered_components[comp_key] = component
-            complete_model["components"] = filtered_components
+            self._prune_components_to_contexts(
+                complete_model, set(filtered_contexts.keys())
+            )
 
     def _filter_workspaces_complete(
         self,
@@ -447,18 +346,9 @@ class FilterService:
         complete_model["contexts"] = filtered_contexts
 
         # Cascade: remove components from filtered-out contexts
-        remaining_context_names = set(filtered_contexts.keys())
-
-        filtered_components = {}
-        for comp_key, component in complete_model["components"].items():
-            context_name = comp_key.split("/")[0]
-            if context_name in remaining_context_names:
-                filtered_components[comp_key] = component
-            else:
-                self.logger.debug(
-                    f" Removing component {comp_key} - context filtered out"
-                )
-        complete_model["components"] = filtered_components
+        self._prune_components_to_contexts(
+            complete_model, set(filtered_contexts.keys())
+        )
 
     def _filter_contexts_complete(
         self,
@@ -483,18 +373,19 @@ class FilterService:
         complete_model["contexts"] = filtered_contexts
 
         # Cascade: remove components from filtered-out contexts
-        remaining_context_names = set(filtered_contexts.keys())
+        self._prune_components_to_contexts(
+            complete_model, set(filtered_contexts.keys())
+        )
 
-        filtered_components = {}
-        for comp_key, component in complete_model["components"].items():
-            context_name = comp_key.split("/")[0]
-            if context_name in remaining_context_names:
-                filtered_components[comp_key] = component
-            else:
-                self.logger.debug(
-                    f" Removing component {comp_key} - context filtered out"
-                )
-        complete_model["components"] = filtered_components
+    def _prune_components_to_contexts(
+        self, complete_model: dict[str, dict[str, Any]], context_names: set[str]
+    ) -> None:
+        """Drop components whose owning context is no longer in the model."""
+        complete_model["components"] = {
+            comp_key: component
+            for comp_key, component in complete_model["components"].items()
+            if comp_key.split("/")[0] in context_names
+        }
 
     def _filter_components_complete(
         self,
@@ -512,6 +403,8 @@ class FilterService:
             operator: Comparison operator
             value: Value to compare
         """
+        property_name = self._COMPONENT_FIELD_ALIASES.get(property_name, property_name)
+
         # Filter components directly
         filtered_components = {}
         for comp_key, component in complete_model["components"].items():
@@ -526,33 +419,6 @@ class FilterService:
                 )
 
         complete_model["components"] = filtered_components
-
-    def _apply_filter(
-        self, elements: dict[str, Any], filter_spec: dict[str, Any]
-    ) -> None:
-        """Apply a single filter to configuration elements.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            filter_spec: Filter specification
-        """
-        self.logger.debug(f"Applying filter: {filter_spec}")
-
-        # Extract filter components
-        entity_type = filter_spec.get("entity_type")
-        property_name = filter_spec["property"]
-        operator = filter_spec["operator"]
-        value = filter_spec["value"]
-
-        # Apply filter based on entity type
-        if entity_type == "workspace" or entity_type is None:
-            self._filter_workspaces(elements, property_name, operator, value)
-
-        if entity_type == "context" or entity_type is None:
-            self._filter_contexts(elements, property_name, operator, value)
-
-        if entity_type == "component" or entity_type is None:
-            self._filter_components(elements, property_name, operator, value)
 
     def _filter_entities_by_property(
         self,
@@ -589,128 +455,6 @@ class FilterService:
                 self.logger.debug(f"Filtering out {entity_type}: {name}")
 
         return filtered_entities
-
-    def _filter_workspaces(
-        self, elements: dict[str, Any], property_name: str, operator: str, value: Any
-    ) -> None:
-        """Filter workspaces based on property, operator, and value using native Pydantic.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            property_name: Name of the property to filter on
-            operator: Comparison operator
-            value: Value to compare against
-        """
-        # Filter workspaces using generic helper method
-        filtered_workspaces = self._filter_entities_by_property(
-            elements["workspaces"], property_name, operator, value, "workspace"
-        )
-
-        # Update elements with filtered workspaces
-        elements["workspaces"] = filtered_workspaces
-
-        # Remove contexts and components from filtered workspaces
-        remaining_workspace_names = set(filtered_workspaces.keys())
-
-        # Filter contexts to only those from remaining workspaces
-        filtered_contexts = {}
-        for context_name, context in elements["contexts"].items():
-            workspace_name = self._get_workspace_for_context(context)
-            if workspace_name in remaining_workspace_names:
-                filtered_contexts[context_name] = context
-        elements["contexts"] = filtered_contexts
-
-        # Filter components to only those from remaining contexts
-        remaining_context_names = set(filtered_contexts.keys())
-        filtered_components = {}
-        for component_key, component in elements["components"].items():
-            if "/" in component_key:
-                context_name = component_key.split("/", 1)[0]
-                if context_name in remaining_context_names:
-                    filtered_components[component_key] = component
-            else:
-                # Keep components without context association
-                filtered_components[component_key] = component
-        elements["components"] = filtered_components
-
-    def _filter_contexts(
-        self, elements: dict[str, Any], property_name: str, operator: str, value: Any
-    ) -> None:
-        """Filter contexts based on property, operator, and value using native Pydantic.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            property_name: Name of the property to filter on
-            operator: Comparison operator
-            value: Value to compare against
-        """
-        # Filter contexts using generic helper method
-        filtered_contexts = self._filter_entities_by_property(
-            elements["contexts"], property_name, operator, value, "context"
-        )
-
-        # Update elements with filtered contexts
-        elements["contexts"] = filtered_contexts
-
-        # Filter components to only those from remaining contexts
-        remaining_context_names = set(filtered_contexts.keys())
-        filtered_components = {}
-        for component_key, component in elements["components"].items():
-            if "/" in component_key:
-                context_name = component_key.split("/", 1)[0]
-                if context_name in remaining_context_names:
-                    filtered_components[component_key] = component
-            else:
-                # Keep components without context association
-                filtered_components[component_key] = component
-        elements["components"] = filtered_components
-
-    def _filter_components(
-        self, elements: dict[str, Any], property_name: str, operator: str, value: Any
-    ) -> None:
-        """Filter components based on property, operator, and value using native Pydantic.
-
-        Args:
-            elements: Dictionary of configuration elements (raw Pydantic models)
-            property_name: Name of the property to filter on
-            operator: Comparison operator
-            value: Value to compare against
-        """
-        self.logger.debug(
-            f"Filtering components with property: {property_name}, operator: {operator}, value: {value}"
-        )
-        self.logger.debug(
-            f"Components before filtering: {list(elements['components'].keys())}"
-        )
-
-        # Special handling for component properties that are commonly accessed
-        # Map common property names to their actual paths
-        property_mappings = {
-            "active": "config.active",
-            "for_commit": "config.for_commit",
-            "required": "config.required",
-            "priority": "config.priority",
-        }
-
-        # Check if we need to map the property name
-        if property_name in property_mappings:
-            actual_property = property_mappings[property_name]
-            self.logger.debug(
-                f"Mapping property '{property_name}' to '{actual_property}'"
-            )
-            property_name = actual_property
-
-        # Filter components using generic helper method
-        filtered_components = self._filter_entities_by_property(
-            elements["components"], property_name, operator, value, "component"
-        )
-
-        # Update elements with filtered components
-        elements["components"] = filtered_components
-
-        self.logger.debug(
-            f"Components after filtering: {list(filtered_components.keys())}"
-        )
 
     def _get_nested_attr(self, obj: Any, property_path: str) -> Any:
         """Get a nested property value from a Pydantic model using getattr chains.
@@ -761,23 +505,7 @@ class FilterService:
             )
             return None
 
-    def _get_property_value(self, obj: Any, property_path: str) -> Any:
-        """Get a property value from an object using a dot-separated path.
-
-        DEPRECATED: This method is kept for backward compatibility but should be
-        replaced with _get_nested_attr for Pydantic models.
-
-        Args:
-            obj: Object to get property from
-            property_path: Dot-separated path to property
-
-        Returns:
-            Property value or None if not found
-        """
-        # For backward compatibility, delegate to the new method
-        return self._get_nested_attr(obj, property_path)
-
-    def _get_workspace_for_context(self, context: Any) -> str | None:
+    def get_workspace_for_context(self, context: Any) -> str | None:
         """Get the workspace name for a context.
 
         Args:
@@ -786,12 +514,8 @@ class FilterService:
         Returns:
             Workspace name or None if not found
         """
-        # Use public methods instead of accessing protected members
-        for workspace in self.config_access.find_workspaces("*"):
-            if context.name in self.config_access.get_all_contexts(workspace):
-                return workspace.name
-
-        return None
+        workspace = self.config_access.find_workspace_for_context(context)
+        return workspace.name if workspace is not None else None
 
     def _compare_values(self, left: Any, operator: str, right: Any) -> bool:
         """Compare two values using the specified operator.
@@ -828,11 +552,6 @@ class FilterService:
                 # Cannot compare non-None values to None with numeric operators
                 return False
 
-        # Special handling for None values in numeric comparisons
-        # This ensures priority>=10 doesn't show components with priority=None
-        if left is None and operator in (">", "<", ">=", "<="):
-            return False
-
         # Handle regex operators BEFORE type conversion
         # This preserves the pattern as a string for regex matching
         if operator == "~=" or operator == "=~":
@@ -852,17 +571,27 @@ class FilterService:
             else:
                 return False
 
-        # Convert types if needed (only for non-regex operators)
-        if isinstance(left, (int, float)) and isinstance(right, str):
-            try:
-                right = type(left)(right)
-            except (ValueError, TypeError):
-                pass
-        elif isinstance(left, bool) and isinstance(right, str):
+        # Convert types if needed (only for non-regex operators).
+        # bool must be tested before int/float: bool subclasses int, so the
+        # numeric branch would coerce via bool("false") == True for boolean
+        # fields compared against raw strings.
+        if isinstance(left, bool) and isinstance(right, str):
             if right.lower() == "true":
                 right = True
             elif right.lower() == "false":
                 right = False
+        elif isinstance(left, (int, float)) and isinstance(right, str):
+            try:
+                right = type(left)(right)
+            except (ValueError, TypeError) as e:
+                # An ordering comparison against a non-numeric value would raise
+                # a confusing TypeError (int > str). Surface a clear filter error.
+                if operator in (">", "<", ">=", "<="):
+                    raise FilterValidationError(
+                        f"Cannot compare numeric field with non-numeric "
+                        f"value '{right}' using '{operator}'."
+                    ) from e
+                # For = / != a numeric field never equals a non-numeric string.
 
         # Perform comparison
         if operator == "=":

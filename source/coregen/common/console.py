@@ -35,15 +35,18 @@ class Console:
         info, warning, error, debug, success
     """
 
-    _user_console = None
-    _log_console = None
+    _user_console: rich_console.Console | None = None
+    _log_console: rich_console.Console | None = None
     verbose_mode = False
     quiet_mode = False
     _no_color = False
     dry_run_mode = False
     # Default output format for internal use only
     _default_output_format = OutputFormat.TEXT
-    _color_system: Literal["auto", "standard", "256", "truecolor", "windows"] = "auto"
+    _color_system: Literal["auto", "standard", "256", "truecolor", "windows"] | None = (
+        "auto"
+    )
+    _current_style: str | None = None
     # Active output format for the current command
     _active_output_format: OutputFormat | None = None
     # Flag to track if user console has been configured
@@ -356,12 +359,18 @@ class Console:
         if isinstance(message, str):
             message = cls._format_with_timestamp_if_debug(message, "PRINT")
 
-        # Print message with style for text-based content
-        if not cls.quiet_mode or (
-            isinstance(message, str)
-            and any(
-                message.startswith(prefix)
-                for prefix in ["Warning:", "Error:", "[DRY RUN]", "DRY RUN:"]
+        # Print message with style for text-based content. An explicit
+        # output_format marks the command's primary result (the data channel),
+        # which quiet mode must never suppress -- quiet gags status output only.
+        if (
+            not cls.quiet_mode
+            or output_format is not None
+            or (
+                isinstance(message, str)
+                and any(
+                    message.startswith(prefix)
+                    for prefix in ["Warning:", "Error:", "[DRY RUN]", "DRY RUN:"]
+                )
             )
         ):
             # Use markup directly in the printed message
@@ -583,8 +592,3 @@ class Console:
             output_format: The output format to set, or None to clear
         """
         cls._active_output_format = output_format
-
-
-# For backward compatibility with existing code
-# No instance - just the class
-Console = Console

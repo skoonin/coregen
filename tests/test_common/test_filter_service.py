@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from coregen.common.filter_service import FilterService
+from coregen.common.filter_service import FilterService, FilterValidationError
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ class TestFilterService:
         result = filter_service.parse_filter_expression("active!=false")
         assert result["property"] == "active"
         assert result["operator"] == "!="
-        assert result["value"] is False
+        assert result["value"] == "false"
 
         # Test pattern matching expressions (both operators)
         result = filter_service.parse_filter_expression("name~=test")
@@ -43,48 +43,50 @@ class TestFilterService:
         assert result["operator"] == "=~"
         assert result["value"] == "test"
 
-        # Test greater than expression
+        # Comparison operators keep the value as a string; _compare_values
+        # coerces it against the field's actual numeric type at apply time.
         result = filter_service.parse_filter_expression("priority>5")
         assert result["property"] == "priority"
         assert result["operator"] == ">"
-        assert result["value"] == 5
+        assert result["value"] == "5"
 
         # Test less than expression
         result = filter_service.parse_filter_expression("priority<10")
         assert result["property"] == "priority"
         assert result["operator"] == "<"
-        assert result["value"] == 10
+        assert result["value"] == "10"
 
         # Test greater than or equal expression
         result = filter_service.parse_filter_expression("priority>=5")
         assert result["property"] == "priority"
         assert result["operator"] == ">="
-        assert result["value"] == 5
+        assert result["value"] == "5"
 
         # Test less than or equal expression
         result = filter_service.parse_filter_expression("priority<=10")
         assert result["property"] == "priority"
         assert result["operator"] == "<="
-        assert result["value"] == 10
+        assert result["value"] == "10"
 
-    def test_parse_filter_expression_value_conversion(self, filter_service):
-        """Test value type conversion in filter expressions."""
-        # Test boolean value conversion
+    def test_parse_filter_expression_keeps_value_as_string(self, filter_service):
+        """Values are not coerced at parse time (except none/null -> None).
+        _compare_values handles type coercion against the field's real type.
+        """
+        # Boolean-looking values stay strings
         result = filter_service.parse_filter_expression("active=true")
-        assert result["value"] is True
+        assert result["value"] == "true"
 
         result = filter_service.parse_filter_expression("active=false")
-        assert result["value"] is False
+        assert result["value"] == "false"
 
-        # Test integer value conversion
+        # Numeric values stay strings
         result = filter_service.parse_filter_expression("count=42")
-        assert result["value"] == 42
+        assert result["value"] == "42"
 
-        # Test float value conversion
         result = filter_service.parse_filter_expression("ratio=3.14")
-        assert result["value"] == 3.14
+        assert result["value"] == "3.14"
 
-        # Test flag without value (defaults to true)
+        # Flag without value still defaults to boolean True (existence check)
         result = filter_service.parse_filter_expression("active")
         assert result["property"] == "active"
         assert result["operator"] == "="
@@ -110,11 +112,11 @@ class TestFilterService:
         assert result["operator"] == "="
         assert result["value"] is None
 
-        # Test that priority with numeric values works
+        # Test that priority with numeric values works (kept as string)
         result = filter_service.parse_filter_expression("priority=100")
         assert result["property"] == "priority"
         assert result["operator"] == "="
-        assert result["value"] == 100
+        assert result["value"] == "100"
 
         # Test config.priority=none
         result = filter_service.parse_filter_expression("config.priority=none")
@@ -127,6 +129,22 @@ class TestFilterService:
         assert result["property"] == "name"
         assert result["operator"] == "="
         assert result["value"] is None  # Converted to None for any field
+
+    def test_parse_filter_expression_empty_property_raises(self, filter_service):
+        """A filter with no property before the operator is malformed."""
+        import pytest
+
+        with pytest.raises(ValueError):
+            filter_service.parse_filter_expression("=value")
+
+    def test_parse_filter_expression_invalid_regex_raises(self, filter_service):
+        """An invalid regex pattern is reported at parse time, not silently
+        deferred to apply time.
+        """
+        import pytest
+
+        with pytest.raises(ValueError):
+            filter_service.parse_filter_expression("name~=[")
 
     def test_parse_filter_expression_entity_types(self, filter_service):
         """Test entity type parsing in filter expressions."""
@@ -156,14 +174,14 @@ class TestFilterService:
         assert result["property"] == "config.active"
         assert result["entity_type"] == "component"
         assert result["operator"] == "="
-        assert result["value"] is True
+        assert result["value"] == "true"
 
         # Test without entity type prefix
         result = filter_service.parse_filter_expression("active=false")
         assert result["property"] == "active"
         assert result["entity_type"] is None
         assert result["operator"] == "="
-        assert result["value"] is False
+        assert result["value"] == "false"
 
     def test_compare_values_basic(self, filter_service):
         """Test _compare_values method with basic operators."""
@@ -228,6 +246,23 @@ class TestFilterService:
         # Test type conversion
         assert filter_service._compare_values(5, "=", "5") is True
         assert filter_service._compare_values(True, "=", "true") is True
+
+    def test_compare_values_numeric_op_with_nonnumeric_value(self, filter_service):
+        """An ordering comparison of a numeric field against a non-numeric value
+        raises a clear FilterValidationError instead of a TypeError.
+        """
+        for op in (">", "<", ">=", "<="):
+            with pytest.raises(FilterValidationError, match="non-numeric"):
+                filter_service._compare_values(5, op, "abc")
+        # equality against a non-numeric value is simply unequal, no raise
+        assert filter_service._compare_values(5, "=", "abc") is False
+        assert filter_service._compare_values(5, "!=", "abc") is True
+
+    def test_filter_validation_error_is_value_error(self):
+        """The filter error type subclasses ValueError so existing handlers and
+        ValueError-based tests keep working.
+        """
+        assert issubclass(FilterValidationError, ValueError)
 
     def test_compare_values_none_handling(self, filter_service):
         """Test _compare_values with None values."""
@@ -299,44 +334,6 @@ class TestFilterService:
         )
         assert filter_workspace_null["value"] is None
 
-    def test_get_property_value_dict(self, filter_service):
-        """Test _get_property_value with dictionary objects."""
-        obj = {"name": "test", "nested": {"value": 42}}
-
-        assert filter_service._get_property_value(obj, "name") == "test"
-        assert filter_service._get_property_value(obj, "nested.value") == 42
-        assert filter_service._get_property_value(obj, "missing") is None
-        assert filter_service._get_property_value(obj, "nested.missing") is None
-
-    def test_get_property_value_object(self, filter_service):
-        """Test _get_property_value with object attributes."""
-
-        class TestObj:
-            def __init__(self):
-                self.name = "test"
-                self.nested = type("obj", (), {"value": 42})()
-
-            def get_config(self):
-                return {"setting": True}
-
-        test_obj = TestObj()
-        assert filter_service._get_property_value(test_obj, "name") == "test"
-        assert filter_service._get_property_value(test_obj, "nested.value") == 42
-        assert filter_service._get_property_value(test_obj, "config.setting") is True
-
-    def test_get_property_value_component_name(self, filter_service):
-        """Test _get_property_value with component name property."""
-
-        # Create a simple object instead of MagicMock for proper attribute access
-        class Component:
-            def __init__(self):
-                self.name = "test-component"
-
-        component = Component()
-
-        # After entity-scoped parsing, we'd access just "name"
-        assert filter_service._get_property_value(component, "name") == "test-component"
-
     def test_apply_filters_empty(self, filter_service):
         """Test apply_filters with empty filter list."""
         elements = {
@@ -345,7 +342,7 @@ class TestFilterService:
             "components": {"comp1": {"name": "comp1"}},
         }
 
-        result = filter_service.apply_filters(elements, [])
+        result = filter_service.apply_filters_complete(elements, [])
 
         # Should return original elements unchanged
         assert len(result["workspaces"]) == 1
@@ -367,7 +364,7 @@ class TestFilterService:
         mock_config_access.find_workspaces.return_value = []
 
         filters = [{"property": "active", "operator": "=", "value": True}]
-        result = filter_service.apply_filters(elements, filters)
+        result = filter_service.apply_filters_complete(elements, filters)
 
         # The actual filtering logic will depend on the elements structure
         # This test mainly ensures the method can be called without errors

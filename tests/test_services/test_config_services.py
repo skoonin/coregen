@@ -16,34 +16,46 @@ from coregen.config_model.models.config import (  # Import CoregenConfig for res
 )
 from coregen.config_model.processor import ConfigProcessor  # Import ConfigProcessor
 from coregen.config_model.provider import ConfigurationProvider
-from coregen.services.config.cfg_base_service import ConfigServiceBase
 from coregen.services.config.cfg_init_service import ConfigInitService
-from coregen.services.config.cfg_schema_service import ConfigSchemaService
+from coregen.services.config.cfg_schema_service import SCHEMA_TYPES, ConfigSchemaService
 from coregen.services.config.cfg_view_service import ConfigViewService
 
 
-class TestConfigServiceBase:
-    """Test the ConfigServiceBase class."""
+class TestConfigServiceBaseInit:
+    """Test the shared init behavior the config services inherit from ServicesBase.
+
+    Config services now derive from ServicesBase (which provides config-provider
+    access) rather than a separate ConfigServiceBase. ConfigInitService stands in
+    as a concrete subclass.
+    """
 
     def test_init_with_defaults(self, mock_config_provider, mock_path_service):
-        """Test initializing with default values."""
-        # Patch the ConfigurationProvider constructor to return our mock
+        """Test that omitted (None) options fall back to settings defaults."""
+        # Passing None routes each option through ServiceBase to the settings
+        # default, preserving the option-precedence the old base encoded.
         with patch(
             "coregen.config_model.provider.ConfigurationProvider",
             return_value=mock_config_provider,
         ):
-            service = ConfigServiceBase()
+            service = ConfigInitService(
+                dry_run=None,
+                file_action=None,
+                quiet=None,
+                verbose=None,
+                no_color=None,
+                config_file=None,
+            )
 
-        # Verify default instances were created
-        assert isinstance(service._console, Console)
+        # ServiceBase stores the Console class reference (not an instance) so
+        # color/flag state stays class-level and consistent across services.
+        assert service._console is Console
         assert isinstance(service._file_manager, FileManager)
         assert isinstance(service._workspace_initializer, WorkspaceInitializer)
         assert isinstance(service._config_provider, ConfigurationProvider)
 
-        # Verify default values
+        # Settings defaults (see config_model/models/defaults.py)
         assert service.dry_run is False
         assert service.file_action == FileAction.OVERWRITE
-        # output_format removed from services
         assert service.quiet is False
         assert service.verbose is False
         assert service.no_color is False
@@ -57,14 +69,13 @@ class TestConfigServiceBase:
         mock_config_provider = MagicMock(spec=ConfigurationProvider)
 
         # Create service with custom values
-        service = ConfigServiceBase(
+        service = ConfigInitService(
             console=mock_console,
             file_manager=mock_file_manager,
             workspace_initializer=mock_workspace_initializer,
             config_provider=mock_config_provider,
             dry_run=True,
             file_action=FileAction.OVERWRITE,
-            # output_format removed,
             quiet=True,
             verbose=True,
             no_color=True,
@@ -79,12 +90,11 @@ class TestConfigServiceBase:
         # Verify custom values
         assert service.dry_run is True
         assert service.file_action == FileAction.OVERWRITE
-        # output_format removed from services
         assert service.quiet is True
         assert service.verbose is True
         assert service.no_color is True
 
-    @patch("coregen.services.config.cfg_base_service.Logger")
+    @patch("coregen.services.service_base.Logger")
     def test_logger_creation(
         self, mock_logger_class, mock_config_provider, mock_path_service
     ):
@@ -99,10 +109,10 @@ class TestConfigServiceBase:
             return_value=mock_config_provider,
         ):
             # Create service - this should trigger Logger instantiation
-            service = ConfigServiceBase()
+            service = ConfigInitService()
 
-        # Verify Logger was instantiated with the correct class name
-        mock_logger_class.assert_called_once_with("ConfigServiceBase")
+        # Verify Logger was instantiated with the concrete class name
+        mock_logger_class.assert_called_once_with("ConfigInitService")
 
         # Verify the service's logger attribute is the mocked instance
         assert service.logger is mock_logger_instance
@@ -335,16 +345,9 @@ def init_service_setup():
     """Set up test fixtures for ConfigInitService tests."""
     # Create mock objects
     mock_file_manager = MagicMock(spec=FileManager)
-    mock_file_manager.write_yaml = (
-        MagicMock()
-    )  # Add this for initialize_repository method
     mock_console = MagicMock(spec=Console)
 
-    # Create a mock config provider for initialize_repository
     mock_config_provider = MagicMock(spec=ConfigurationProvider)
-    mock_config_provider.create_config = MagicMock(
-        return_value={"version": "1.0", "workspaces": []}
-    )
 
     # Mock workspace initializer
     mock_workspace_initializer = MagicMock(spec=WorkspaceInitializer)
@@ -369,36 +372,6 @@ def init_service_setup():
 class TestConfigInitService:
     """Test the ConfigInitService class."""
 
-    def test_initialize_repository_new_file(self, init_service_setup):
-        """Test initializing a new config file."""
-        service = init_service_setup["service"]
-        mock_file_manager = init_service_setup["mock_file_manager"]
-        # Mock Path.exists to return False (file doesn't exist)
-        with patch("pathlib.Path.exists", return_value=False):
-            # Call initialize_repository
-            result_path = service.initialize_repository(
-                config_file_path=Path("config.yaml")
-            )
-
-        # Verify file was written
-        mock_file_manager.write_yaml.assert_called_once()
-        assert result_path == Path("config.yaml")
-
-    def test_initialize_repository_existing_file(self, init_service_setup):
-        """Test initializing when file exists."""
-        service = init_service_setup["service"]
-        mock_file_manager = init_service_setup["mock_file_manager"]
-        # Mock Path.exists to return True (file exists)
-        with patch("pathlib.Path.exists", return_value=True):
-            # Call initialize_repository
-            result_path = service.initialize_repository(
-                config_file_path=Path("config.yaml")
-            )
-
-        # Verify file was not written
-        assert not mock_file_manager.write_yaml.called
-        assert result_path == Path("config.yaml")
-
     def test_initialize_config_success(self, init_service_setup):
         """Test initializing configuration from existing file."""
         service = init_service_setup["service"]
@@ -418,7 +391,7 @@ class TestConfigInitService:
         init_service_setup[
             "mock_workspace_initializer"
         ].initialize_workspace.assert_called_once()
-        assert result is True
+        assert result.success is True
 
     def test_initialize_config_file_not_found(self, init_service_setup):
         """Test initializing config with non-existent file."""
@@ -431,7 +404,7 @@ class TestConfigInitService:
 
         # Verify file was not processed
         assert not mock_config_provider.load_config.called
-        assert result is False
+        assert result.success is False
 
 
 @pytest.fixture
@@ -451,18 +424,6 @@ def schema_service_setup():
 
 class TestConfigSchemaService:
     """Test the ConfigSchemaService class."""
-
-    def test_get_schema_types(self, schema_service_setup):
-        """Test getting schema types."""
-        service = schema_service_setup["service"]
-        # Get schema types
-        schema_types = service.get_schema_types()
-
-        # Verify schema types include the basic ones
-        assert "settings" in schema_types
-        assert "workspace" in schema_types
-        assert "context" in schema_types
-        assert "component" in schema_types
 
     @patch("coregen.services.config.cfg_schema_service.settings")
     def test_get_schema(self, mock_settings, schema_service_setup):
@@ -526,8 +487,8 @@ class TestConfigSchemaService:
 
             # Verify result structure
             assert "schema_data" in result
-            assert len(result["schema_data"]) == len(service.get_schema_types())
+            assert len(result["schema_data"]) == len(SCHEMA_TYPES)
             assert result["has_multiple"]
 
             # Verify get_schema was called for each type
-            assert mock_get_schema.call_count == len(service.get_schema_types())
+            assert mock_get_schema.call_count == len(SCHEMA_TYPES)

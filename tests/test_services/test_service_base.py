@@ -31,7 +31,7 @@ class TestServiceBase:
             mock_settings.return_value = mock_settings_obj
 
             # Also patch GlobalOptions as it's still used in ServiceBase
-            with patch("coregen.cli.global_options.GlobalOptions") as mock_go_class:
+            with patch("coregen.cli.global_options.GlobalOptions") as _:
                 # Create service with default values
                 service = ServiceBase()
 

@@ -488,11 +488,9 @@ def test_style_context():
             with Console.style_context("error"):
                 Console.print("Nested style test")
 
-        # Test that style_context properly resets on exit
+        # style_context must restore the default style after exit
         Console.print("After style context")
-
-        # If we got here without exceptions, the test passes
-        assert True
+        assert Console._current_style is None or Console._current_style == ""
 
 
 def test_dry_run_basic():

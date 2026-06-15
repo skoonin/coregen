@@ -9,13 +9,15 @@ import glob
 import importlib
 import os
 import re
-from collections.abc import Generator
-from functools import lru_cache
+from functools import cached_property
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from coregen.common.console import Console
 from coregen.common.logger import Logger
+
+if TYPE_CHECKING:
+    from coregen.config_model.models.settings import CoregenSettings
 
 logger = Logger(__name__)
 
@@ -49,18 +51,20 @@ class PathResolver:
         """Set the root path for the resolver."""
         self._root_path = Path(path).resolve()
 
-    @property
-    @lru_cache(maxsize=1)
-    def settings(self) -> dict[str, Any]:
+    @cached_property
+    def settings(self) -> "CoregenSettings":
         """
         Get application settings from coregen.config_model.models.settings module.
 
         Raises an exception if settings cannot be loaded - we require settings
         to be available for all path resolution operations.
+
+        cached_property (not property+lru_cache): lru_cache on an instance
+        method keys on self and pins every instance for the process lifetime.
         """
-        # Direct import from correct path
+        # Dynamic import avoids a circular import at module load time.
         module = importlib.import_module("coregen.config_model.models.settings")
-        return cast(dict[str, Any], module.get_settings())
+        return cast("CoregenSettings", module.get_settings())
 
     def set_workspace_path(
         self, workspace_name: str, custom_path: str | None = None
@@ -183,13 +187,11 @@ class PathResolver:
         **kwargs: Any,
     ) -> Path:
         """Get the path for a component within a context."""
-        # If custom_path is provided, use it directly
+        # Custom paths get the same root-containment enforcement as
+        # workspace/context custom paths; unchecked absolute values let a
+        # config point a component outside the repository.
         if custom_path:
-            return (
-                Path(custom_path)
-                if os.path.isabs(custom_path)
-                else self.root_path / custom_path
-            )
+            return self._resolve_custom_path(custom_path)
 
         # Get the context path from stored paths
         path_key = f"{workspace_name}/{context_name}"
@@ -211,7 +213,7 @@ class PathResolver:
 
         # Get commit_dir directly from settings
         dir_name = self.settings.context.commit_dir
-        return cast(Path, path / dir_name / component_name)
+        return path / dir_name / component_name
 
     def get_commit_dir(
         self,
@@ -333,10 +335,6 @@ class PathResolver:
                 return False
             current = current[part]
         return True
-
-    def find_files_by_pattern(self, pattern: str | Path) -> Generator[Path, None, None]:
-        """Find files matching a glob pattern."""
-        yield from (Path(p) for p in glob.glob(str(pattern), recursive=True))
 
     def _resolve_custom_path(self, path: str) -> Path:
         """Resolve a custom path string to an absolute Path object."""

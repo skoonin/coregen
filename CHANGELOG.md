@@ -1,8 +1,39 @@
 # CHANGELOG
 
-## v1.0.6-dev - 2025-12-02
+## v1.1.1-dev
 
-> This commit is the initial commit of this repo after migrating from a private repository.
+## v1.1.0 - 2026-06-14
+
+### Changed
+
+- The `--filter` option's environment variable is now `CG_FILTERS` (parameter renamed from `filter` to `filters`); `CG_FILTER` no longer applies (#16)
+- `--quiet` no longer suppresses a command's primary result; it now silences only status and progress output (#29)
+- `get` and `detect-changes` exit with code 1 (not 2) when a config file is not found, matching the documented exit-code contract and the `config` commands (#29)
+- `detect-changes` JSON/YAML output keeps stable `changes` and `deleted` arrays even when empty (#29)
+- Invalid filters — invalid regex, empty property name, or a filter that targets a more specific entity than the pattern (e.g. `c/*` with a `component.*` filter) — now exit non-zero with a clear message across `get`, `generate`, `detect-changes`, and `check-pattern` instead of silently returning no results. A pattern may still be filtered by its own or an ancestor entity's fields, e.g. `cm/*` with `context.*`/`workspace.*` (#34, #37)
+- `generate` now exits 2 (input error) for invalid filters/patterns, matching `get`/`check-pattern` and the documented exit-code contract (#39)
+
+### Fixed
+
+- Explicit `--file-action` on the command line now wins over the `CG_FILE_ACTION` environment variable (#15)
+- Generation errors are now always reported with a message instead of failing silently in some paths (#16)
+- Component dependency paths no longer have to exist on disk at validation time (#16)
+- Active workspaces/contexts are no longer dropped from `generate`/`get` output when all of their children are inactive (#27)
+- `generate --quiet` now exits non-zero when generation produced errors instead of reporting success (#29)
+- Invalid input no longer produces a spurious trailing error line (e.g. `Failed to get elements: 1`) (#29)
+- Required-cascade components can no longer be filtered out with `!=`, matching the documented behavior (#32)
+- Components with a null priority now sort last even when another component has a high numeric priority (#31)
+- Writing generated output over a pre-existing empty directory no longer fails (#31)
+- `generate --filter` no longer emits required components for contexts excluded by the filter (#34)
+- Filter exact match (`=`/`!=`) now works on string fields whose values look numeric or boolean, e.g. account IDs or `"false"` (#34)
+- Bare component config fields in filters (e.g. `component.required`) now resolve the same as `component.config.required` across all commands (#36)
+- A numeric ordering filter against a non-numeric value (e.g. `component.config.priority>abc`) now reports a clear error instead of a raw type error (#39)
+
+### Security
+
+- Output, commit, and archive paths are contained to their intended directories; archive extraction rejects entries that escape the destination (#18)
+
+## v1.0.6 - 2025-12-02
 
 ### Added
 

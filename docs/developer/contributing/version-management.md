@@ -123,20 +123,23 @@ dev: 1.0.3-dev (always) → release/1.0.3: 1.0.3 → main: 1.0.3
 
 ### Automated Releases
 
-The GitHub workflow `.github/workflows/cd-release.yaml` provides automated releases:
+The GitHub workflow `.github/workflows/cd-release.yaml` cuts a release from the
+version already committed in `source/coregen/__init__.py`. Bump the version
+manually before running the workflow.
 
-1. **Go to Actions tab** in GitHub
-2. **Select "Coregen Release" workflow**
-3. **Click "Run workflow"**
-4. **Enter version number** (e.g., "1.0.1")
-5. **Optionally force release** to overwrite existing
+1. **Bump the version** in `source/coregen/__init__.py` and merge it to `main`
+2. **Go to Actions tab** in GitHub
+3. **Select "Coregen Release" workflow**
+4. **Click "Run workflow"**
+5. **Optionally enable `force_release`** to delete and recreate an existing release
 
-This will automatically:
+The workflow reads `__version__` from `source/coregen/__init__.py` (the only
+relevant decision is `force_release`; there is no version input). It then:
 
-- Update version in `source/coregen/__init__.py`
-- Run full test suite
-- Create git commit and tag
-- Create GitHub release with generated notes
+- Validates the version is semver and the tag does not already exist
+- Runs the full test suite
+- Creates the git tag
+- Creates the GitHub release with generated notes
 
 ### CI/CD Integration
 

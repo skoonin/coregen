@@ -309,7 +309,6 @@ deleted:
 | `context_name`             | string      | Context identifier                                     |
 | `context`                  | string      | Context (same as context_name)                         |
 | `environment`              | string/null | Environment (same as context_environment)              |
-| `environment`              | string/null | Environment (same as context_environment)              |
 | `reason`                   | string      | Change reason: `direct`, `required_cascade`, `deleted` |
 | `status`                   | string      | Component status: `changed`, `deleted`                 |
 | `workspace_name`           | string      | Workspace identifier                                   |

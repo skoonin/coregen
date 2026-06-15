@@ -18,12 +18,12 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "pydantic>=2.10.0",
-    "rich>=13.7.0",
-    "typer>=0.14.0",
-    "pyyaml>=6.0.0",
-    "Jinja2>=3.1.6",
-    "GitPython>=3.1.0",
+    "pydantic>=2.10.0,<3",
+    "rich>=13.7.0,<16",
+    "typer>=0.14.0,<1",
+    "pyyaml>=6.0.0,<7",
+    "Jinja2>=3.1.6,<4",
+    "GitPython>=3.1.0,<4",
 ]
 
 [project.urls]
@@ -121,7 +121,6 @@ omit = [
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
-    "if self\\.debug",
     "raise AssertionError",
     "raise NotImplementedError",
     "if 0:",
@@ -129,7 +128,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@(abc\\.)?abstractmethod",
 ]
-ignore_errors = true
+ignore_errors = false
 precision = 2
 fail_under = 79
 
@@ -153,10 +152,8 @@ pythonpath = ["source"]
 markers = [
     "performance: marks tests that check performance (deselect with '-m \"not performance\"')",
     "integration: marks integration tests",
-    "unit: marks unit tests",
     "e2e: marks end-to-end tests (deselect with '-m \"not e2e\"')",
     "platform_macos: marks tests that only run on macOS",
-    "platform_linux: marks tests that only run on Linux",
     "platform_agnostic: marks tests that should run on all platforms",
 ]
 
@@ -176,6 +173,7 @@ ignore_missing_imports = true
 follow_imports = "normal"
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
+warn_unused_ignores = true
 warn_unreachable = true
 warn_no_return = true
 disallow_any_unimported = false
@@ -183,12 +181,7 @@ disallow_any_expr = false
 disallow_any_decorated = false
 disallow_any_explicit = false
 disallow_subclassing_any = true
-disable_error_code = ["attr-defined", "index", "assignment", "union-attr", "operator", "unreachable"]
-
-[[tool.mypy.overrides]]
-module = "source.*"
-disallow_untyped_defs = true
-check_untyped_defs = true
+disable_error_code = []
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
@@ -215,13 +208,13 @@ max-line-length = 160
 # E402: module level import not at top of file
 # E501: line too long
 # F811: redefinition of unused name
-extend-ignore = ["E203", "W503", "D202", "D100", "D101", "D102", "D103", "D104", "D105", "D205", "D400", "D401", "F541", "F841", "E402", "E501", "F811"]
+extend-ignore = ["E203", "W503", "D202", "D100", "D101", "D102", "D103", "D104", "D105", "D205", "D400", "D401", "F541", "E402", "E501"]
 exclude = [".git", "__pycache__", "docs/source/conf.py", "old", "build", "dist", ".venv", "test_data", "*_example.json"]
 
 [tool.pylint]
 max-line-length = 160
 disable = [
-    "C0330", "C0326",  # Black compatibility
+    # C0330/C0326 removed: deleted from modern pylint (black compat built in)
     "missing-module-docstring",
     "missing-class-docstring",
     "missing-function-docstring",

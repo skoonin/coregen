@@ -58,7 +58,7 @@ app = typer.Typer(
 # --------------- Main Application Callback -------------- #
 
 
-@app.callback(rich_help_panel="Global Options", invoke_without_command=True)  # type: ignore[misc]
+@app.callback(rich_help_panel="Global Options", invoke_without_command=True)
 def main(
     ctx: typer.Context,
     help: Annotated[
@@ -215,7 +215,7 @@ register_get_commands(app)
 
 
 # Then define and register the version command (move this code from above)
-@app.command(  # type: ignore[misc]
+@app.command(
     name="version",
     help="Show the version of coregen",
     no_args_is_help=False,

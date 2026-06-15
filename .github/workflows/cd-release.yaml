@@ -16,6 +16,9 @@ concurrency:
 env:
   _TYPER_FORCE_DISABLE_TERMINAL: "1"
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Create Release
@@ -45,6 +48,12 @@ jobs:
         id: get_version
         run: |
           VERSION=$(grep "__version__ =" source/coregen/__init__.py | cut -d'"' -f2)
+          if \! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version '$VERSION' from __init__.py is not valid semver"; exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists; bump the version before releasing"; exit 1
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Found version: $VERSION"
 

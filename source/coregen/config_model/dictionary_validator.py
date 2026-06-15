@@ -22,7 +22,7 @@ class ConfigDictValidator:
         """Initialize the validator with optional settings."""
         self.settings = settings or CoregenSettings()  # type: ignore[call-arg]  # Known Pydantic v2 mypy plugin bug
 
-    def validate_config(self, config_dict: dict[str, Any]) -> list[str]:
+    def validate_config(self, config_dict: Any) -> list[str]:
         """
         Validate a configuration dictionary and return a list of validation errors.
 
@@ -38,7 +38,7 @@ class ConfigDictValidator:
             errors.append("Configuration must be a dictionary")
             return errors
 
-        # Validate version if present  # type: ignore[unreachable]
+        # Validate version if present
         if "version" in config_dict:
             try:
                 self._validate_version(config_dict["version"])

@@ -5,13 +5,31 @@ This module provides functionality to test pattern matching against configuratio
 and visualize matching results.
 """
 
-import fnmatch
-from typing import Any
+from typing import Any, TypedDict
 
 from coregen.common.inactive_filter_service import InactiveFilterService
 from coregen.common.pattern import PatternSelector
 from coregen.common.pattern.pattern_spec import LogicalPatternSpec  # noqa: F401
 from coregen.services.services_base import ServicesBase
+
+
+class PatternExamples(TypedDict):
+    """Matched and rejected example elements for a pattern analysis."""
+
+    matched: list[dict[str, str]]
+    rejected: list[dict[str, str]]
+
+
+class PatternAnalysis(TypedDict):
+    """Structured result of analyzing why a pattern matches or rejects elements."""
+
+    pattern: str
+    pattern_type: str
+    pattern_parts: list[dict[str, Any]]
+    examples: PatternExamples
+    match_attempts: list[str]
+    phase1_results: dict[str, Any]
+    phase2_results: dict[str, Any]
 
 
 class CheckPatternService(ServicesBase):
@@ -160,7 +178,7 @@ class CheckPatternService(ServicesBase):
         }
 
         # Apply type filtering if specified
-        type_value = type.value if hasattr(type, "value") else type
+        type_value = getattr(type, "value", type)
         if type_value:
             matched_results: dict[str, Any] = results["matched"]
             results["matched"] = self._filter_results_by_type(
@@ -229,6 +247,7 @@ class CheckPatternService(ServicesBase):
 
         # Apply filters if specified
         if filters:
+            self.validate_pattern_filter_compatibility([pattern], filters)
             parsed_filters = []
             for filter_expr in filters:
                 parsed_filters.append(self.parse_filter_expression(filter_expr))
@@ -275,9 +294,7 @@ class CheckPatternService(ServicesBase):
                 rejected["contexts"][context_name] = {
                     "name": context.name,
                     "environment": context.environment,
-                    "workspace": self.filter_service._get_workspace_for_context(
-                        context
-                    ),
+                    "workspace": self.filter_service.get_workspace_for_context(context),
                 }
 
             all_components_in_context = context.get_all_components()
@@ -295,14 +312,14 @@ class CheckPatternService(ServicesBase):
                     rejected["components"][component_key] = {
                         "name": component.name,
                         "context": context_name,
-                        "workspace": self.filter_service._get_workspace_for_context(
+                        "workspace": self.filter_service.get_workspace_for_context(
                             context
                         ),
                     }
 
         return rejected
 
-    def _analyze_pattern_matching(self, pattern: str) -> dict[str, Any]:
+    def _analyze_pattern_matching(self, pattern: str) -> PatternAnalysis:
         """Analyze why elements match or don't match a pattern, using the two-phase matching approach.
 
         Args:
@@ -311,7 +328,7 @@ class CheckPatternService(ServicesBase):
         Returns:
             Dictionary with pattern analysis
         """
-        analysis = {
+        analysis: PatternAnalysis = {
             "pattern": pattern,
             "pattern_type": "Unknown",
             "pattern_parts": self._break_down_pattern(pattern),
@@ -449,13 +466,13 @@ class CheckPatternService(ServicesBase):
                 ctx_name = comp_key.split("/")[0]
                 comp_name = comp_key.split("/")[1]
                 ctx = actual_results["matched"].get("contexts", {}).get(ctx_name)
-                ws = (
+                comp_ws = (
                     self.config_access._get_workspace_from_context(ctx) if ctx else None
                 )
 
                 matched_items.append(
                     {
-                        "path": f"{ws.name if ws else '?'}/{ctx_name}/{comp_name}",
+                        "path": f"{comp_ws.name if comp_ws else '?'}/{ctx_name}/{comp_name}",
                         "type": "Component",
                         "reason": "Matched pattern specification",
                     }
@@ -549,7 +566,7 @@ class CheckPatternService(ServicesBase):
         segments = pattern.split("/")
 
         for segment in segments:
-            segment_info = {"segment": segment, "wildcards": []}
+            segment_info: dict[str, Any] = {"segment": segment, "wildcards": []}
 
             # Check for wildcards
             if "*" in segment:
@@ -577,17 +594,3 @@ class CheckPatternService(ServicesBase):
             parts.append(segment_info)
 
         return parts
-
-    def _explain_mismatch_logical(self, pattern: str, *potential_paths: str) -> str:
-        """Explain why a logical pattern didn't match any potential logical paths."""
-        reasons = []
-        for path in potential_paths:
-            if not fnmatch.fnmatch(path, pattern):
-                reasons.append(f"does not match '{path}'")
-        if not reasons:
-            return f"Pattern '{pattern}' did not match any standard logical forms."
-        return f"Pattern '{pattern}' {', '.join(reasons)}."
-
-    # REMOVED: _present_results method - services should not handle presentation
-    # The entire _present_results method has been removed as services should return data, not present it
-    # This method contained direct console.print() calls which violated the architecture pattern

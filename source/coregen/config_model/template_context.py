@@ -24,7 +24,7 @@ def render_template_for_context(context, template_path):
 ```
 """
 
-from typing import Any, cast
+from typing import Any
 
 from coregen.config_model.models.components import Component
 from coregen.config_model.models.context import Context
@@ -122,36 +122,6 @@ class TemplateContextAdapter:
                 for component_name, component in components.items():
                     app_ns[component_name] = component
 
-    def get_context_properties(self) -> dict[str, Any]:
-        """
-        Get all context properties as a dictionary, not including components.
-
-        Returns:
-            Dict[str, Any]: Dictionary of context properties
-        """
-        return cast(dict[str, Any], getattr(self, self._context_type))
-
-    def get_component_types(self) -> dict[str, dict[str, Component]]:
-        """
-        Get all component namespaces.
-
-        Returns:
-            Dict[str, Dict[str, Component]]: Dictionary of component types to components
-        """
-        result = {}
-        for attr_name in dir(self):
-            # Skip internal attributes and the context namespace
-            if not attr_name.startswith("_") and attr_name != self._context_type:
-                attr_value = getattr(self, attr_name)
-                # Check if this is a component namespace
-                if (
-                    isinstance(attr_value, dict)
-                    and attr_value
-                    and isinstance(next(iter(attr_value.values())), Component)
-                ):
-                    result[attr_name] = attr_value
-        return result
-
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the template context to a dictionary.
@@ -209,33 +179,3 @@ def create_template_context(context: Context) -> dict[str, Any]:
     """
     adapter = TemplateContextAdapter(context)
     return adapter.to_dict()
-
-
-def render_with_context(template_str: str, context: Context) -> str:
-    """
-    Render a template with a Context object.
-
-    Args:
-        template_str: The template string to render
-        context: The Context object to use for rendering
-
-    Returns:
-        str: The rendered template
-
-    Raises:
-        ImportError: If Jinja2 is not installed
-    """
-    try:
-        from jinja2 import Template
-
-        # Create template context
-        template_context = create_template_context(context)
-
-        # Create and render template
-        template = Template(template_str)
-        result = template.render(**template_context)
-        return str(result)
-    except ImportError as exc:
-        raise ImportError(
-            "Jinja2 is required for template rendering. Please install it with 'pip install jinja2'."
-        ) from exc

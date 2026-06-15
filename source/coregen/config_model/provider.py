@@ -22,6 +22,10 @@ from coregen.config_model.models.context import Context
 from coregen.config_model.models.settings import get_settings
 from coregen.config_model.models.workspace import WorkspaceConfig
 from coregen.config_model.processor import ConfigProcessor
+from coregen.config_model.validation_error_grouper import (
+    VALIDATION_ERROR_HEADER,
+    group_validation_errors,
+)
 
 
 class EffectiveOptions(TypedDict):
@@ -261,84 +265,11 @@ class ConfigurationProvider:
         # Initialize config access
         self._config_access = ConfigAccess(self._config, self._path_service)
 
-        # Process validation errors by grouping and deduplicating them
+        # Group and deduplicate validation errors, then log the result
         if self.validation_errors:
-            # Group errors by context, component and error type
-            grouped_errors: dict[str, str | dict[str, Any]] = {}
-
+            self.validation_errors = group_validation_errors(self.validation_errors)
             for error in self.validation_errors:
-                # Extract context and component info for grouping
-                context_name = "unknown context"
-                component_name = "unknown component"
-
-                # Extract context name using regex or simple string parsing
-                if "in context " in error:
-                    parts = error.split("in context ", 1)
-                    if len(parts) > 1:
-                        context_part = parts[1].split(":", 1)[0].strip()
-                        context_name = context_part
-
-                # Extract component name if present
-                if "component " in error:
-                    parts = error.split("component ", 1)
-                    if len(parts) > 1:
-                        component_part = parts[1].split(":", 1)[0].strip()
-                        component_name = component_part
-
-                # Extract error type for more precise grouping
-                error_type = "other"
-                if "template" in error or "templated" in error:
-                    error_type = "invalid_field_template"
-                elif "Priority must be" in error:
-                    error_type = "invalid_priority"
-                elif "component_type" in error:
-                    error_type = "invalid_component_type"
-                elif "Extra inputs are not permitted" in error:
-                    error_type = "extra_fields"
-                elif "is not valid" in error:
-                    error_type = "invalid_value"
-                elif "is required" in error:
-                    error_type = "missing_required_field"
-                elif "Schema validation error" in error:
-                    error_type = "schema_validation"
-
-                # Create a composite key for more precise grouping of similar errors
-                key = f"{context_name}:{component_name}:{error_type}"
-
-                # Store first occurrence of each unique error type
-                if key not in grouped_errors:
-                    grouped_errors[key] = error
-                # Optionally count occurrences for summary
-                else:
-                    if isinstance(grouped_errors[key], dict):
-                        grouped_errors[key]["count"] += 1  # type: ignore[index, operator]
-                    else:
-                        # Convert to dictionary on second occurrence
-                        first_error = grouped_errors[key]
-                        grouped_errors[key] = {"error": first_error, "count": 2}
-
-            # Replace with unique grouped errors, optionally with counts for repeated errors
-            unique_errors = []
-            for key, error_data in grouped_errors.items():
-                if isinstance(error_data, dict):  # type: ignore[unreachable]
-                    unique_errors.append(  # type: ignore[unreachable]
-                        f"{error_data['error']} (repeated {error_data['count']} times)"
-                    )
-                else:
-                    unique_errors.append(error_data)
-
-            self.validation_errors = unique_errors
-
-            # Add some helpful context to the errors list
-            if self.validation_errors:
-                self.validation_errors.insert(
-                    0,
-                    "Configuration contains validation errors. See below for details and how to fix them.",
-                )
-
-            # Log the unique errors
-            for error in self.validation_errors:
-                if "Configuration contains validation errors" not in error:
+                if VALIDATION_ERROR_HEADER not in error:
                     self._logger.error(f"Validation error: {error}")
 
         return self._config
@@ -465,40 +396,6 @@ class ConfigurationProvider:
         # Create and return the config model
         return CoregenConfig(workspaces=workspaces)
 
-    def create_context_config(
-        self, workspace_name: str, context_name: str, environment: str
-    ) -> tuple[dict[str, Any], str]:
-        """
-        Create a new context configuration for a given workspace and environment.
-
-        Args:
-            workspace_name: The name of the workspace this context belongs to
-            context_name: The name of the new context
-            environment: The environment for this context (required)
-
-        Returns:
-            Tuple of (context config dictionary, suggested file path)
-        """
-        try:
-            # Leverage ConfigCreator directly to create the context
-            context = self._creator.create_context(context_name, environment)
-
-            # Determine a logical path for the context file
-            suggested_path = (
-                f"{workspace_name}/{environment}/{context_name}-cgvalues.yaml"
-            )
-
-            return cast(dict[str, Any], context), suggested_path
-        except Exception as e:
-            self._logger.error(f"Error creating context configuration: {str(e)}")
-            # Return a minimal valid context to allow operation to continue
-            return {
-                "name": context_name,
-                "environment": environment,
-                "component_type": self._settings.context.component_type,
-            }, f"{workspace_name}/{environment}/{context_name}-cgvalues.yaml"
-
-    # Delegate access methods to ConfigAccess
     def _ensure_config_loaded(self) -> None:
         """Ensure configuration is loaded."""
         if self._config is None:
@@ -546,26 +443,6 @@ class ConfigurationProvider:
             self._delegate_to_config_access("find_contexts", pattern, **filters),
         )
 
-    def find_contexts_by_environment(
-        self, environment: str, workspace_pattern: str = "*"
-    ) -> list[Context]:
-        """
-        Find contexts with a specific environment.
-
-        Args:
-            environment: Environment name to match
-            workspace_pattern: Optional workspace pattern to filter by
-
-        Returns:
-            List of matching Context instances
-        """
-        return cast(
-            list[Context],
-            self._delegate_to_config_access(
-                "find_contexts_by_environment", environment, workspace_pattern
-            ),
-        )
-
     def find_components(
         self, pattern: str = "*/*/*", **filters: Any
     ) -> list[Component]:
@@ -584,17 +461,28 @@ class ConfigurationProvider:
             self._delegate_to_config_access("find_components", pattern, **filters),
         )
 
-    def get(self, path: str) -> Any:
+    def get_workspace(self, name: str) -> WorkspaceConfig | None:
         """
-        Get configuration element by path.
+        Get workspace by name.
 
         Args:
-            path: Path to configuration element (e.g., "workspace/context/component")
+            name: Name of workspace
 
         Returns:
-            Configuration element (WorkspaceConfig, Context, or Component)
+            WorkspaceConfig or None if not found
         """
-        return self._delegate_to_config_access("get", path)
+        try:
+            return cast(
+                WorkspaceConfig, self._delegate_to_config_access("get_workspace", name)
+            )
+        except ValueError:
+            self._logger.warning(f"Workspace not found: {name}")
+            return None
+        except Exception as e:
+            self._logger.warning(
+                f"Unexpected error getting workspace '{name}': {str(e)}"
+            )
+            return None
 
     def get_context(self, path: str) -> Context | None:
         """
@@ -655,29 +543,6 @@ class ConfigurationProvider:
         except Exception as e:
             self._logger.warning(
                 f"Unexpected error getting component '{path}': {str(e)}"
-            )
-            return None
-
-    def get_workspace(self, name: str) -> WorkspaceConfig | None:
-        """
-        Get workspace by name.
-
-        Args:
-            name: Name of workspace
-
-        Returns:
-            WorkspaceConfig or None if not found
-        """
-        try:
-            return cast(
-                WorkspaceConfig, self._delegate_to_config_access("get_workspace", name)
-            )
-        except ValueError:
-            self._logger.warning(f"Workspace not found: {name}")
-            return None
-        except Exception as e:
-            self._logger.warning(
-                f"Unexpected error getting workspace '{name}': {str(e)}"
             )
             return None
 
@@ -747,30 +612,6 @@ class ConfigurationProvider:
             errors.append(f"Error validating configuration: {str(e)}")
 
         return errors
-
-    def _apply_overrides_to_workspace(
-        self, workspace_config: dict[str, Any], options: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Apply CLI overrides to workspace configuration."""
-        # Get settings for defaults
-        get_settings()
-
-        # Map CLI options to workspace config keys
-        mapping = {
-            "archive_dir": "archive_dir",
-            "output_dir": "output_dir",
-            "context_config_files": "context_config_files",
-            "context_type": "context_type",
-            "path": "path",
-            "name": "name",
-        }
-
-        # Apply overrides where provided
-        for option_key, config_key in mapping.items():
-            if option_key in options and options[option_key] is not None:
-                workspace_config[config_key] = options[option_key]
-
-        return workspace_config
 
     def has_config(self) -> bool:
         """

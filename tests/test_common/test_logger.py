@@ -265,7 +265,6 @@ def test_logger_inheritance(mock_console, reset_logger):
 
 def test_exception_logging(mock_console, reset_logger):
     """Test exception logging with traceback."""
-    # This is a simplified test just to ensure the method works without errors
     logger = Logger("test")
 
     try:
@@ -274,9 +273,8 @@ def test_exception_logging(mock_console, reset_logger):
         # exc_info will be processed by the Rich handler
         logger.error("An error occurred", exc_info=True)
 
-    # Since we're using RichHandler, it will be processed by the rich console
-    # The test succeeds if no exceptions are raised
-    assert True
+    # The error (with traceback) must reach the console handler
+    mock_console.print.assert_called()
 
 
 def test_invalid_log_level_handling(mock_console):

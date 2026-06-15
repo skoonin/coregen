@@ -444,6 +444,61 @@ class TestCheckPatternService:
             assert "contexts" in result["rejected"]
             assert "rejected-context" in result["rejected"]["contexts"]
 
+    def test_find_rejected_elements_real_logic(self, check_pattern_service_basic_setup):
+        """Exercise the REAL _find_rejected_elements (not a stub).
+
+        Builds matched/all-element structures and asserts the method actually
+        identifies the unmatched (rejected) context and component.
+        """
+        service = check_pattern_service_basic_setup["service"]
+
+        matched_context = MagicMock(spec=Context)
+        matched_context.name = "matched-context"
+        matched_context.environment = "dev"
+        matched_context.get_all_components = MagicMock(
+            return_value={"keep": MagicMock(spec=Component, name="keep")}
+        )
+
+        rejected_context = MagicMock(spec=Context)
+        rejected_context.name = "rejected-context"
+        rejected_context.environment = "prod"
+        rejected_component = MagicMock(spec=Component)
+        rejected_component.name = "drop"
+        rejected_context.get_all_components = MagicMock(
+            return_value={"drop": rejected_component}
+        )
+
+        all_contexts = {
+            "matched-context": matched_context,
+            "rejected-context": rejected_context,
+        }
+
+        # config_access drives discovery of all workspaces/contexts.
+        service.config_access.find_workspaces = MagicMock(return_value=["ws"])
+        service.config_access.get_all_contexts = MagicMock(return_value=all_contexts)
+
+        # filter_service resolves the owning workspace name for each context.
+        service.filter_service.get_workspace_for_context = MagicMock(return_value="ws")
+
+        matched_elements = {
+            "contexts": {"matched-context": matched_context},
+            # Component keys are "<context>/<component>".
+            "components": {"matched-context/keep": MagicMock()},
+        }
+
+        rejected = service._find_rejected_elements(matched_elements)
+
+        # Rejected context identified; matched one excluded.
+        assert "rejected-context" in rejected["contexts"]
+        assert "matched-context" not in rejected["contexts"]
+        assert rejected["contexts"]["rejected-context"]["environment"] == "prod"
+        assert rejected["contexts"]["rejected-context"]["workspace"] == "ws"
+
+        # Rejected component in the rejected context identified by composite key.
+        assert "rejected-context/drop" in rejected["components"]
+        # The matched component is not rejected.
+        assert "matched-context/keep" not in rejected["components"]
+
     def test_check_pattern_analyze(self, check_pattern_service_basic_setup):
         """Test pattern checking with analyze flag."""
         # Unpack fixture

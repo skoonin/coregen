@@ -2,43 +2,27 @@
 
 from unittest.mock import patch
 
+from coregen.services.config.cfg_init_service import InitResult
+
 
 def test_invalid_command_handling(cli_runner, cli_app):
     """Test handling of an invalid command."""
-    # Use catch_exceptions to prevent test from failing due to SystemExit
     result = cli_runner.invoke(cli_app, ["invalid-command"], catch_exceptions=True)
-
-    # Check that the command execution doesn't crash the test runner
-    # We're not testing exact error messages as they might vary between environments
-    if result.exception:
-        # If an exception was raised, that's expected for invalid commands
-        assert True
-    else:
-        # Otherwise check for non-zero exit code
-        assert result.exit_code != 0
+    assert result.exit_code != 0 or result.exception is not None
 
 
 def test_invalid_option_handling(cli_runner, cli_app):
     """Test handling of an invalid command-line option."""
-    # Use catch_exceptions to prevent test from failing due to SystemExit
     result = cli_runner.invoke(cli_app, ["--invalid-option"], catch_exceptions=True)
-
-    # Just verify the command was run - we're not testing exact error messages
-    # as they might vary between environments
-    assert True
+    assert result.exit_code != 0 or result.exception is not None
 
 
 def test_missing_required_argument(cli_runner, cli_app):
-    """Test error when a required argument is missing."""
-    # Use catch_exceptions to prevent test from failing due to SystemExit
-    with patch(
-        "coregen.cli.commands.generate.gen_generate_cli.console.error"
-    ) as mock_error:
-        # Test generate command which requires a path argument
+    """Test that generate command without arguments doesn't crash."""
+    with patch("coregen.cli.commands.generate.gen_generate_cli.console.error"):
         result = cli_runner.invoke(cli_app, ["generate"], catch_exceptions=True)
-
-        # No assertion needed, we're just verifying the test can run
-        assert True
+        # Command shows help or handles gracefully -- no crash
+        assert result.exception is None
 
 
 def test_config_file_not_found(cli_runner, cli_app):
@@ -48,7 +32,7 @@ def test_config_file_not_found(cli_runner, cli_app):
     ) as mock_service:
         # Configure mock to simulate missing config file
         mock_instance = mock_service.return_value
-        mock_instance.initialize_config.return_value = False
+        mock_instance.initialize_config.return_value = InitResult(success=False)
 
         # Use a non-existent config path
         result = cli_runner.invoke(
@@ -77,7 +61,7 @@ def test_generate_workspace_errors(cli_runner, cli_app):
         }
 
         # Run generate command with catch_exceptions
-        result = cli_runner.invoke(
+        cli_runner.invoke(
             cli_app, ["generate", "workspace/test"], catch_exceptions=True
         )
 
@@ -142,7 +126,7 @@ def test_check_pattern_invalid_pattern_error(cli_runner, cli_app):
         )
 
         # Run command with invalid pattern and catch_exceptions
-        result = cli_runner.invoke(
+        cli_runner.invoke(
             cli_app, ["check-pattern", "invalid/pattern/format"], catch_exceptions=True
         )
 
@@ -162,7 +146,7 @@ def test_non_existent_directory_error(cli_runner, cli_app):
         )
 
         # Run command that references non-existent directory with catch_exceptions
-        result = cli_runner.invoke(
+        cli_runner.invoke(
             cli_app, ["generate", "/nonexistent/dir/component"], catch_exceptions=True
         )
 
@@ -180,7 +164,7 @@ def test_syntax_error_in_config(cli_runner, cli_app):
         mock_instance.view_config.side_effect = SyntaxError("Invalid YAML syntax")
 
         # Run command that would try to parse invalid config with catch_exceptions
-        result = cli_runner.invoke(cli_app, ["config", "view"], catch_exceptions=True)
+        cli_runner.invoke(cli_app, ["config", "view"], catch_exceptions=True)
 
         # Verify service was called correctly
         mock_service.assert_called_once()
@@ -196,7 +180,7 @@ def test_detect_changes_no_git_repo_error(cli_runner, cli_app):
         mock_instance.detect_changes.side_effect = RuntimeError("Not a git repository")
 
         # Run detect-changes command with catch_exceptions
-        result = cli_runner.invoke(cli_app, ["detect-changes"], catch_exceptions=True)
+        cli_runner.invoke(cli_app, ["detect-changes"], catch_exceptions=True)
 
         # Verify service was called correctly
         mock_service.assert_called_once()

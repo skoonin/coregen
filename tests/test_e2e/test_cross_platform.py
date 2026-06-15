@@ -51,8 +51,7 @@ def cross_platform_env(temp_test_dir: Path) -> dict[str, Any]:
 
     # Create the main config file with all paths within the test directory
     config_yaml = platform_test_dir / ".cgconfig.yaml"
-    config_yaml.write_text(
-        """
+    config_yaml.write_text("""
 workspaces:
   - name: platform_test
     workspace_dir: .  # Current directory
@@ -69,43 +68,34 @@ workspaces:
     context_type: component
     context_config_files:
       - "*.yaml"  # Only files in this dir
-"""
-    )
+""")
 
     # Create context files in each directory
     # Since context_type is "component", we need files with "component:" as top-level key
     # These represent contexts, not components
-    (platform_test_dir / "regular-component.yaml").write_text(
-        """component:
+    (platform_test_dir / "regular-component.yaml").write_text("""component:
   name: platform-test-regular
   environment: test
   active: true
-"""
-    )
+""")
 
-    (special_chars_dir / "special-chars-component.yaml").write_text(
-        """component:
+    (special_chars_dir / "special-chars-component.yaml").write_text("""component:
   name: special-chars-component
   environment: test
   active: true
-"""
-    )
+""")
 
-    (unicode_dir / "unicode-component.yaml").write_text(
-        """component:
+    (unicode_dir / "unicode-component.yaml").write_text("""component:
   name: unicode-component
   environment: test
   active: true
-"""
-    )
+""")
 
-    (long_path / "long-path-component.yaml").write_text(
-        """component:
+    (long_path / "long-path-component.yaml").write_text("""component:
   name: long-path-component
   environment: test
   active: true
-"""
-    )
+""")
 
     # Return the environment configuration
     return {
@@ -129,7 +119,7 @@ def test_platform_detection(cross_platform_env: dict[str, Any], run_cli_command)
 
     # The version output might include platform information, but at minimum
     # it should run successfully on the current platform
-    current_platform = platform.system().lower()
+    platform.system().lower()
 
     # Basic verification that the app works on this platform
     # The version command outputs something like "v1.0.0"
@@ -204,13 +194,11 @@ def test_relative_path_resolution(cross_platform_env: dict[str, Any], run_cli_co
 
     # Create a context with relative path references
     relative_component = cross_platform_env["root_dir"] / "relative-component.yaml"
-    relative_component.write_text(
-        """component:
+    relative_component.write_text("""component:
   name: relative-component
   environment: test
   active: true
-"""
-    )
+""")
 
     # Create the template directories and files
     templates_dir = cross_platform_env["root_dir"] / "templates"
@@ -342,14 +330,12 @@ def test_json_output_encoding(cross_platform_env: dict[str, Any], run_cli_comman
 
     # Create a component with Unicode in its properties
     unicode_component = cross_platform_env["unicode_dir"] / "unicode_data.yaml"
-    unicode_component.write_text(
-        """
+    unicode_component.write_text("""
     name: unicode-data
     type: service
     version: 1.0.0
     description: "Проверка Unicode データテスト 中文测试"
-    """
-    )
+    """)
 
     # Run get command with JSON output
     result = run_cli_command(

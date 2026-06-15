@@ -106,8 +106,9 @@ def test_file_not_found_errors(env_setup, run_cli_command):
     """Test error output for file not found scenarios."""
     os.chdir(env_setup["root_dir"])
 
-    # Non-existent config file
-    result = run_cli_command("get 'w/*' -c /nonexistent/config.yaml", expected_code=2)
+    # Non-existent config file: exit 1 = general/config error per the
+    # documented contract (exit 2 is reserved for input/validation errors)
+    result = run_cli_command("get 'w/*' -c /nonexistent/config.yaml", expected_code=1)
     assert result["success"]  # Success means we got expected exit code
     assert (
         "not found" in result["stderr"].lower()
@@ -115,7 +116,8 @@ def test_file_not_found_errors(env_setup, run_cli_command):
         or "error" in result["stderr"].lower()
     )
 
-    # JSON file not found
+    # JSON file not found: stays exit 2 -- the service wraps it as a
+    # ValueError (invalid input option), not a config-load failure
     result = run_cli_command("get --json-file /nonexistent/input.json", expected_code=2)
     assert result["success"]
     assert (

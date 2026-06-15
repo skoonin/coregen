@@ -61,7 +61,7 @@ Key design principles:
 
 ## Command Structure
 
-> **Note**: Use `make tree` (or directly `.ci-tools/cli-tree.py source/coregen/main.py`) to generate an up-to-date command tree visualization. Use `make tree-help` to include help text in the output.
+> **Note**: Use `make cli-tree` (or directly `.ci-tools/cli-tree.py source/coregen/__main__.py`) to generate an up-to-date command tree visualization. Use `make tree-help` to include help text in the output.
 
 Coregen follows a hierarchical command structure:
 
@@ -398,6 +398,8 @@ coregen detect-changes [OPTIONS]
 - `--output-dir`: Custom temp directory for generated files (default: .cgtmp)
 - `--keep-generated, -k`: Don't delete generated files after comparison (for debugging)
 
+> **Matrix/JSON output**: by default the `changes` array (JSON) and `include` array (matrix) contain both changed and deleted components; check each entry's `status` field, or use `--changed-only` / `--deleted-only` to segregate them. Deleted components also appear in the separate `deleted` array.
+
 ### version Command
 
 Show the version of coregen.
@@ -522,27 +524,38 @@ Coregen implements a standardized approach for handling global options using the
 
 ### GlobalOptions Class
 
+`GlobalOptions` is a plain class whose constructor defaults are read from
+settings (`settings.options.global_options`). It exposes the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dry_run` | bool | Show what would be done without making changes |
+| `file_action` | FileAction | Action when a file exists (settings default: `overwrite`) |
+| `quiet` | bool | Suppress non-essential output |
+| `verbose` | bool | Show detailed output |
+| `no_color` | bool | Disable colored output |
+| `config_file` | Path \| None | Path to the configuration file |
+| `debug` | bool | Enable debug output |
+
 ```python
-@dataclass
 class GlobalOptions:
-    """Container for global CLI options."""
+    """Standardized handling of global options across the application."""
 
-    dry_run: bool = False
-    file_action: FileAction = FileAction.ASK
-    no_color: bool = False
-    output_format: OutputFormat = OutputFormat.TEXT
-    quiet: bool = False
-    verbose: bool = False
-    config_file: Optional[Path] = None
-
-    # Methods for converting to/from other formats
-    def to_dict(self) -> dict: ...
-
-    @classmethod
-    def from_context(cls, ctx) -> 'GlobalOptions': ...
+    def __init__(
+        self,
+        dry_run: bool = settings.options.global_options.dry_run,
+        file_action: FileAction = settings.options.global_options.file_action,
+        quiet: bool = settings.options.global_options.quiet,
+        verbose: bool = settings.options.global_options.verbose,
+        no_color: bool = settings.options.global_options.no_color,
+        config_file: Path | None = settings.options.global_options.config_file,
+        debug: bool = False,
+    ) -> None: ...
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'GlobalOptions': ...
+    def from_context(cls, ctx: typer.Context) -> "GlobalOptions": ...
+
+    def to_dict(self) -> dict[str, Any]: ...
 ```
 
 ## Common Use Cases

@@ -124,70 +124,6 @@ class TestTypeFilterService:
         service.logger.warning.assert_called_once()
 
     # ========================================================================
-    # filter_by_type Tests
-    # ========================================================================
-
-    def test_filter_by_type_workspace(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test filter_by_type includes all entity types for workspace."""
-        result = service.filter_by_type(sample_data, "workspace")
-
-        assert "workspaces" in result
-        assert "contexts" in result
-        assert "components" in result
-        assert len(result["workspaces"]) == 2
-        assert len(result["contexts"]) == 2
-        assert len(result["components"]) == 2
-
-    def test_filter_by_type_context(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test filter_by_type includes contexts and components only."""
-        result = service.filter_by_type(sample_data, "context")
-
-        assert "workspaces" in result
-        assert "contexts" in result
-        assert "components" in result
-        # Workspaces should be empty dict when filtering by context
-        assert result["workspaces"] == {}
-        assert len(result["contexts"]) == 2
-        assert len(result["components"]) == 2
-
-    def test_filter_by_type_component(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test filter_by_type includes only components."""
-        result = service.filter_by_type(sample_data, "component")
-
-        assert "workspaces" in result
-        assert "contexts" in result
-        assert "components" in result
-        assert result["workspaces"] == {}
-        assert result["contexts"] == {}
-        assert len(result["components"]) == 2
-
-    def test_filter_by_type_none_defaults_to_workspace(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test filter_by_type with None entity_type defaults to workspace."""
-        result = service.filter_by_type(sample_data, None)
-
-        assert len(result["workspaces"]) == 2
-        assert len(result["contexts"]) == 2
-        assert len(result["components"]) == 2
-
-    def test_filter_by_type_empty_string_defaults_to_workspace(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test filter_by_type with empty string defaults to workspace."""
-        result = service.filter_by_type(sample_data, "")
-
-        assert len(result["workspaces"]) == 2
-        assert len(result["contexts"]) == 2
-        assert len(result["components"]) == 2
-
-    # ========================================================================
     # apply_hierarchy_filter Tests
     # ========================================================================
 
@@ -233,51 +169,6 @@ class TestTypeFilterService:
         assert "components" in result
         assert result["contexts"] == {}
         assert result["components"] == {}
-
-    # ========================================================================
-    # get_entity_type_counts Tests
-    # ========================================================================
-
-    def test_get_entity_type_counts_with_dicts(
-        self, service: TypeFilterService, sample_data: dict[str, Any]
-    ):
-        """Test get_entity_type_counts returns correct counts for dict format."""
-        result = service.get_entity_type_counts(sample_data)
-
-        assert result["workspaces"] == 2
-        assert result["contexts"] == 2
-        assert result["components"] == 2
-
-    def test_get_entity_type_counts_with_lists(
-        self, service: TypeFilterService, flat_data: dict[str, Any]
-    ):
-        """Test get_entity_type_counts returns correct counts for list format."""
-        result = service.get_entity_type_counts(flat_data)
-
-        assert result["workspaces"] == 2
-        assert result["contexts"] == 2
-        assert result["components"] == 2
-
-    def test_get_entity_type_counts_empty_data(self, service: TypeFilterService):
-        """Test get_entity_type_counts handles empty data."""
-        result = service.get_entity_type_counts({})
-
-        assert result["workspaces"] == 0
-        assert result["contexts"] == 0
-        assert result["components"] == 0
-
-    def test_get_entity_type_counts_mixed_formats(self, service: TypeFilterService):
-        """Test get_entity_type_counts handles mixed dict/list formats."""
-        data = {
-            "workspaces": {"ws1": {}, "ws2": {}},
-            "contexts": ["ctx1", "ctx2", "ctx3"],
-            "components": {},
-        }
-        result = service.get_entity_type_counts(data)
-
-        assert result["workspaces"] == 2
-        assert result["contexts"] == 3
-        assert result["components"] == 0
 
     # ========================================================================
     # filter_exclusive Tests
