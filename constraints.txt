@@ -51,7 +51,7 @@ nodeenv==1.10.0
 packageurl-python==0.17.6
 packaging==26.2
 pathspec==1.1.1
-pip_audit==2.10.0
+pip_audit==2.10.1
 platformdirs==4.10.0
 pluggy==1.6.0
 pre_commit==4.6.0
