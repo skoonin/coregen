@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## v1.1.1 - 2026-07-06
+
+### Changed
+
+- Repository and CI hardening: GitHub Actions are pinned to commit SHAs with Dependabot keeping them current (#41), and CodeQL code scanning (Python and workflow files) now runs on pushes and pull requests to `main` and `dev` (#56).
+
+### Added
+
+- Claude Code CI: mention `@claude` on a pull request for interactive help, or apply the `pr-review` label to run an automated code review (#56).
+
 ## v1.1.0 - 2026-06-14
 
 ### Changed
