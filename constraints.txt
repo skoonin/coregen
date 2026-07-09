@@ -60,7 +60,7 @@ pydantic==2.13.4
 pydantic_core==2.46.4
 pyflakes==3.4.0
 Pygments==2.20.0
-pylint==4.0.5
+pylint==4.0.6
 pyparsing==3.3.2
 pyproject-api==1.10.1
 pyproject_hooks==1.2.0
