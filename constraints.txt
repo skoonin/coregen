@@ -4,7 +4,7 @@
 annotated-doc==0.0.4
 annotated-types==0.7.0
 ast_serialize==0.5.0
-astroid==4.0.4
+astroid==4.1.2
 backports.tarfile==1.2.0
 bandit==1.9.4
 black==26.5.1
