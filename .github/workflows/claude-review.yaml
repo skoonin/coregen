@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0
 
       - name: Claude PR Review
-        uses: anthropics/claude-code-action@558b1d6cab4085c7753fe402c10bef0fbb92ac7a  # v1.0.165
+        uses: anthropics/claude-code-action@a874e9ecd7bb36efdad65429c6b35815f5a08f10  # v1.0.210
         with:
           anthropic_api_key: ${{ secrets.CC_API_KEY }}
           # No track_progress: the action rejects it for the 'labeled' event
